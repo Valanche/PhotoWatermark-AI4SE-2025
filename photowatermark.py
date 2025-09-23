@@ -51,8 +51,15 @@ def add_watermark(image_path, output_path, text, font_size=20, color=(255, 255, 
     """Add a text watermark to an image."""
     try:
         # Open the image
-        image = Image.open(image_path).convert('RGBA')
+        image = Image.open(image_path)
         width, height = image.size
+        
+        # Preserve EXIF data if it exists
+        exif_data = image.info.get('exif')
+        
+        # Convert to RGBA for watermarking
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
         
         # Create a transparent layer for the watermark
         txt_layer = Image.new('RGBA', image.size, (255, 255, 255, 0))
@@ -96,8 +103,12 @@ def add_watermark(image_path, output_path, text, font_size=20, color=(255, 255, 
         if output_path.lower().endswith('.jpg') or output_path.lower().endswith('.jpeg'):
             watermarked = watermarked.convert('RGB')
             
-        # Save the watermarked image
-        watermarked.save(output_path)
+        # Save the watermarked image with EXIF data
+        save_kwargs = {}
+        if exif_data:
+            save_kwargs['exif'] = exif_data
+            
+        watermarked.save(output_path, **save_kwargs)
         print(f"Watermarked image saved to {output_path}")
     except Exception as e:
         print(f"Error adding watermark to {image_path}: {e}")
