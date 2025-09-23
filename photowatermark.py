@@ -16,6 +16,9 @@ from PIL.ImageDraw import ImageDraw
 from PIL.ImageFont import truetype
 import datetime
 
+# Supported image extensions
+IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.gif')
+
 def get_exif_data(image_path):
     """Extract EXIF data from an image file."""
     try:
@@ -128,10 +131,29 @@ def process_image(image_path, font_size, color, position):
     # Add watermark
     add_watermark(image_path, output_path, watermark_text, font_size, color, position)
 
+def process_directory(directory_path, font_size, color, position):
+    """Process all image files in a directory."""
+    # Get all files in the directory
+    files = os.listdir(directory_path)
+    
+    # Filter for image files
+    image_files = [f for f in files if f.lower().endswith(IMAGE_EXTENSIONS)]
+    
+    if not image_files:
+        print(f"No image files found in {directory_path}")
+        return
+    
+    print(f"Processing {len(image_files)} images in {directory_path}")
+    
+    # Process each image file
+    for image_file in image_files:
+        image_path = os.path.join(directory_path, image_file)
+        process_image(image_path, font_size, color, position)
+
 def main():
     """Main function to parse arguments and process images."""
     parser = argparse.ArgumentParser(description="Add a text watermark with capture date to images.")
-    parser.add_argument("image_path", help="Path to the image file")
+    parser.add_argument("path", help="Path to the image file or directory")
     parser.add_argument("--font-size", type=int, default=20, help="Font size for the watermark (default: 20)")
     parser.add_argument("--color", nargs=3, type=int, default=[255, 255, 255], 
                         metavar=('R', 'G', 'B'), help="Watermark color as RGB values (default: 255 255 255)")
@@ -143,9 +165,9 @@ def main():
     
     args = parser.parse_args()
     
-    # Validate image path
-    if not os.path.isfile(args.image_path):
-        print(f"Error: File not found at {args.image_path}")
+    # Validate path
+    if not os.path.exists(args.path):
+        print(f"Error: Path not found at {args.path}")
         return
     
     # Validate color values
@@ -153,8 +175,18 @@ def main():
         print("Error: Color values must be between 0 and 255")
         return
     
-    # Process the image
-    process_image(args.image_path, args.font_size, tuple(args.color), args.position)
+    # Process based on whether it's a file or directory
+    if os.path.isfile(args.path):
+        # Process a single image file
+        if not args.path.lower().endswith(IMAGE_EXTENSIONS):
+            print(f"Error: File is not a supported image format")
+            return
+        process_image(args.path, args.font_size, tuple(args.color), args.position)
+    elif os.path.isdir(args.path):
+        # Process all images in the directory
+        process_directory(args.path, args.font_size, tuple(args.color), args.position)
+    else:
+        print(f"Error: Path is neither a file nor a directory")
 
 if __name__ == "__main__":
     main()
