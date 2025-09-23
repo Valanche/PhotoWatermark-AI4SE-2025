@@ -11,8 +11,7 @@ to images. Users can customize the font size, color, and position of the waterma
 
 import argparse
 import os
-from PIL import Image, ExifTags
-from PIL.ImageDraw import ImageDraw
+from PIL import Image, ExifTags, ImageDraw
 from PIL.ImageFont import truetype
 import datetime
 
@@ -57,7 +56,7 @@ def add_watermark(image_path, output_path, text, font_size=20, color=(255, 255, 
         
         # Create a transparent layer for the watermark
         txt_layer = Image.new('RGBA', image.size, (255, 255, 255, 0))
-        draw = ImageDraw(draw=txt_layer)
+        draw = ImageDraw.Draw(txt_layer)
         
         # Try to use a TrueType font; fallback to default if not available
         try:
@@ -103,7 +102,7 @@ def add_watermark(image_path, output_path, text, font_size=20, color=(255, 255, 
     except Exception as e:
         print(f"Error adding watermark to {image_path}: {e}")
 
-def process_image(image_path, font_size, color, position):
+def process_image(image_path, font_size, color, position, output_dir=None):
     """Process a single image file."""
     # Get EXIF data
     exif_data = get_exif_data(image_path)
@@ -118,14 +117,17 @@ def process_image(image_path, font_size, color, position):
     watermark_text = capture_date
     
     # Determine output directory
-    directory = os.path.dirname(image_path)
-    filename = os.path.basename(image_path)
-    name, ext = os.path.splitext(filename)
+    if output_dir is None:
+        # For single image processing, create a subdirectory named after the image
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        output_dir = os.path.join(directory, f"{name}_watermark")
     
-    output_dir = os.path.join(directory, f"{name}_watermark")
     os.makedirs(output_dir, exist_ok=True)
     
     # Define output path
+    filename = os.path.basename(image_path)
     output_path = os.path.join(output_dir, filename)
     
     # Add watermark
@@ -133,6 +135,10 @@ def process_image(image_path, font_size, color, position):
 
 def process_directory(directory_path, font_size, color, position):
     """Process all image files in a directory."""
+    # Create the output directory for watermarked images
+    output_dir = os.path.join(directory_path, f"{os.path.basename(directory_path)}_watermark")
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Get all files in the directory
     files = os.listdir(directory_path)
     
@@ -148,7 +154,7 @@ def process_directory(directory_path, font_size, color, position):
     # Process each image file
     for image_file in image_files:
         image_path = os.path.join(directory_path, image_file)
-        process_image(image_path, font_size, color, position)
+        process_image(image_path, font_size, color, position, output_dir)
 
 def main():
     """Main function to parse arguments and process images."""
