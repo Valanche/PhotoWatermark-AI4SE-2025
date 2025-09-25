@@ -72,13 +72,42 @@ class PhotoWatermarkGUI:
         self.image_paths = []
         self.current_image_index = 0
         self.current_image = None
-        self.thumbnail_size = (100, 100)
+        self.thumbnail_size = (80, 80)
+        # 存储缩略图组件的引用
+        self.thumbnail_widgets = []
         
         self.setup_ui()
         
         # 设置拖拽事件（如果支持）
         if HAS_DND:
             self.setup_drag_drop()
+    
+    def on_thumbnail_frame_configure(self, event):
+        """当缩略图框架大小改变时更新滚动区域"""
+        self.thumbnail_canvas.configure(scrollregion=self.thumbnail_canvas.bbox("all"))
+    
+    def on_canvas_configure(self, event):
+        """当画布大小改变时更新框架宽度"""
+        canvas_width = event.width
+        self.thumbnail_canvas.itemconfig(self.thumbnail_frame_id, width=canvas_width)
+    
+    def create_thumbnail(self, image_path):
+        """为指定图片路径创建缩略图"""
+        try:
+            image = Image.open(image_path)
+            image_copy = image.copy()  # 避免关闭原图
+            image_copy.thumbnail(self.thumbnail_size, Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
+            return ImageTk.PhotoImage(image_copy)
+        except AttributeError:
+            # 对于旧版本的Pillow
+            image = Image.open(image_path)
+            image_copy = image.copy()
+            image_copy.thumbnail(self.thumbnail_size, Image.LANCZOS)
+            return ImageTk.PhotoImage(image_copy)
+        except Exception:
+            # 如果无法创建缩略图，返回占位符
+            placeholder = Image.new('RGB', self.thumbnail_size, (200, 200, 200))
+            return ImageTk.PhotoImage(placeholder)
     
     def setup_ui(self):
         """设置用户界面"""
@@ -105,15 +134,29 @@ class PhotoWatermarkGUI:
         list_container = ttk.Frame(list_frame)
         list_container.pack(fill=tk.BOTH, expand=True)
         
-        self.image_listbox = tk.Listbox(list_container)
-        scrollbar = ttk.Scrollbar(list_container, orient="vertical", command=self.image_listbox.yview)
-        self.image_listbox.configure(yscrollcommand=scrollbar.set)
+        # 使用Canvas和Frame组合来创建带缩略图的列表
+        self.thumbnail_canvas = tk.Canvas(list_container, bg='white')
+        scrollbar = ttk.Scrollbar(list_container, orient="vertical", command=self.thumbnail_canvas.yview)
         
-        self.image_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # 创建一个内部框架来容纳缩略图项目
+        self.thumbnail_frame = ttk.Frame(self.thumbnail_canvas)
+        self.thumbnail_frame_id = self.thumbnail_canvas.create_window((0, 0), window=self.thumbnail_frame, anchor="nw")
+        
+        # 配置滚动功能
+        self.thumbnail_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        self.thumbnail_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 绑定选择事件
-        self.image_listbox.bind('<<ListboxSelect>>', self.on_image_select)
+        # 存储缩略图引用，防止被垃圾回收
+        self.thumbnail_images = []
+        
+        # 绑定配置事件以更新滚动区域
+        self.thumbnail_frame.bind("<Configure>", self.on_thumbnail_frame_configure)
+        self.thumbnail_canvas.bind("<Configure>", self.on_canvas_configure)
+        
+        # 预定义缩略图大小
+        self.thumbnail_size = (80, 80)
         
         # 预览区域
         preview_frame = ttk.LabelFrame(main_frame, text="预览")
@@ -136,9 +179,13 @@ class PhotoWatermarkGUI:
         self.preview_canvas.drop_target_register(DND_FILES)
         self.preview_canvas.dnd_bind('<<Drop>>', self.on_drop)
         
-        # 为图片列表设置拖拽事件
-        self.image_listbox.drop_target_register(DND_FILES)
-        self.image_listbox.dnd_bind('<<Drop>>', self.on_drop)
+        # 为缩略图画布设置拖拽事件
+        self.thumbnail_canvas.drop_target_register(DND_FILES)
+        self.thumbnail_canvas.dnd_bind('<<Drop>>', self.on_drop)
+        
+        # 为缩略图框架设置拖拽事件
+        self.thumbnail_frame.drop_target_register(DND_FILES)
+        self.thumbnail_frame.dnd_bind('<<Drop>>', self.on_drop)
     
     def import_images(self):
         """导入图片文件"""
@@ -186,23 +233,70 @@ class PhotoWatermarkGUI:
         
         for path in new_paths:
             self.image_paths.append(path)
-            # 显示文件名（不包括路径）到列表框
-            filename = os.path.basename(path)
-            self.image_listbox.insert(tk.END, filename)
+            # 创建缩略图项目
+            self.add_thumbnail_item(path)
         
         # 如果这是第一次添加图片，自动选择第一张
         if len(self.image_paths) == len(new_paths):
             self.current_image_index = 0
-            self.image_listbox.selection_set(0)
+            self.select_thumbnail_item(0)
             self.display_preview()
     
-    def on_image_select(self, event):
-        """当在列表中选择图片时"""
-        selection = self.image_listbox.curselection()
-        if selection:
-            index = selection[0]
+    def add_thumbnail_item(self, image_path):
+        """添加单个缩略图项目"""
+        # 创建缩略图
+        thumbnail_img = self.create_thumbnail(image_path)
+        self.thumbnail_images.append(thumbnail_img)  # 保持引用防止被垃圾回收
+        
+        # 创建缩略图项的框架
+        item_frame = ttk.Frame(self.thumbnail_frame, relief=tk.RAISED, borderwidth=1)
+        item_frame.pack(fill=tk.X, padx=5, pady=2)
+        
+        # 创建图片标签
+        img_label = tk.Label(item_frame, image=thumbnail_img, bd=0)
+        img_label.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 创建文件名标签
+        filename = os.path.basename(image_path)
+        name_label = tk.Label(item_frame, text=filename, anchor='w')
+        name_label.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=5)
+        
+        # 获取当前索引
+        idx = len(self.thumbnail_widgets)
+        
+        # 绑定点击事件
+        def on_click(e, index=idx):
+            self.select_thumbnail_item(index)
+        
+        item_frame.bind("<Button-1>", on_click)
+        img_label.bind("<Button-1>", on_click)
+        name_label.bind("<Button-1>", on_click)
+        
+        # 存储组件引用
+        self.thumbnail_widgets.append({
+            'frame': item_frame,
+            'img_label': img_label,
+            'name_label': name_label,
+            'path': image_path
+        })
+        
+        # 更新滚动区域
+        self.thumbnail_frame.update_idletasks()
+        self.thumbnail_canvas.configure(scrollregion=self.thumbnail_canvas.bbox("all"))
+    
+    def select_thumbnail_item(self, index):
+        """选择指定索引的缩略图项"""
+        # 重置所有项的背景色
+        for widget_info in self.thumbnail_widgets:
+            widget_info['frame'].configure(relief=tk.RAISED)
+        
+        # 设置选中项的背景色
+        if 0 <= index < len(self.thumbnail_widgets):
+            self.thumbnail_widgets[index]['frame'].configure(relief=tk.SUNKEN)
             self.current_image_index = index
             self.display_preview()
+    
+    # 删除这个方法，因为我们不再使用Listbox的事件
     
     def display_preview(self):
         """在预览区域显示当前图片"""
