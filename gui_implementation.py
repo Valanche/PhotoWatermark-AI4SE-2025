@@ -456,7 +456,7 @@ class PhotoWatermarkGUI:
         # 根据输出格式决定扩展名
         format_rule = self.format_var.get()
         if format_rule == "JPEG":
-            ext = ".jpg"
+            ext = ".jpeg"
         elif format_rule == "PNG":
             ext = ".png"
         # "原格式"选项保持原扩展名
