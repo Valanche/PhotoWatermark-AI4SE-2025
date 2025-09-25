@@ -3,7 +3,7 @@ PhotoWatermark-AI4SE GUI Implementation
 迭代二：实现文件处理功能
 """
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, scrolledtext
 from PIL import Image, ImageTk
 import os
 import threading
@@ -15,6 +15,46 @@ try:
 except ImportError:
     HAS_DND = False
     print("警告: 未安装tkinterdnd2库，拖拽功能将不可用。请运行 'pip install tkinterdnd2' 来启用此功能。")
+
+
+class CopyableMessageBox:
+    """可复制的错误消息对话框"""
+    def __init__(self, parent, title, message):
+        self.top = tk.Toplevel(parent)
+        self.top.title(title)
+        self.top.geometry("600x400")
+        self.top.transient(parent)
+        self.top.grab_set()
+        
+        # 创建滚动文本框
+        text_frame = ttk.Frame(self.top)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.text_widget = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD)
+        self.text_widget.pack(fill=tk.BOTH, expand=True)
+        self.text_widget.insert(tk.END, message)
+        self.text_widget.config(state=tk.DISABLED)  # 设置为只读
+        
+        # 复制按钮
+        button_frame = ttk.Frame(self.top)
+        button_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        copy_btn = ttk.Button(button_frame, text="复制到剪贴板", command=self.copy_to_clipboard)
+        copy_btn.pack(side=tk.LEFT)
+        
+        ok_btn = ttk.Button(button_frame, text="确定", command=self.top.destroy)
+        ok_btn.pack(side=tk.RIGHT)
+    
+    def copy_to_clipboard(self):
+        """复制文本到剪贴板"""
+        self.top.clipboard_clear()
+        self.top.clipboard_append(self.text_widget.get(1.0, tk.END))
+        self.top.update()  # 更新剪贴板
+
+
+def show_error_message(parent, title, message):
+    """显示可复制的错误消息"""
+    CopyableMessageBox(parent, title, message)
 
 
 class PhotoWatermarkGUI:
@@ -198,7 +238,8 @@ class PhotoWatermarkGUI:
             )
             
         except Exception as e:
-            messagebox.showerror("错误", f"无法加载图片 {image_path}: {str(e)}")
+            error_msg = f"无法加载图片 {image_path}: {str(e)}"
+            show_error_message(self.root, "错误", error_msg)
     
     def export_images(self):
         """导出图片"""
@@ -212,9 +253,13 @@ class PhotoWatermarkGUI:
         
         # 确保输出目录不是输入图片的目录
         input_dir = os.path.dirname(self.image_paths[0]) if self.image_paths else ""
-        if input_dir and os.path.samefile(output_dir, input_dir):
-            if not messagebox.askyesno("确认", "导出目录与输入目录相同，可能会覆盖原图。是否继续？"):
-                return
+        try:
+            if input_dir and os.path.samefile(output_dir, input_dir):
+                if not messagebox.askyesno("确认", "导出目录与输入目录相同，可能会覆盖原图。是否继续？"):
+                    return
+        except OSError:
+            # 如果无法比较路径（例如在不同驱动器上），则继续
+            pass
         
         # 在新线程中执行导出以避免界面冻结
         threading.Thread(target=self._export_process, args=(output_dir,), daemon=True).start()
@@ -240,12 +285,14 @@ class PhotoWatermarkGUI:
                     
                     success_count += 1
                 except Exception as e:
-                    print(f"导出文件失败 {img_path}: {str(e)}")
+                    error_msg = f"导出文件失败 {img_path}: {str(e)}"
+                    print(error_msg)  # 同时打印到控制台
             
             # 在主线程中显示完成消息
             self.root.after(0, lambda: messagebox.showinfo("完成", f"导出完毕！成功导出 {success_count} 个文件。"))
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("错误", f"导出过程中发生错误: {str(e)}"))
+            error_msg = f"导出过程中发生错误: {str(e)}"
+            self.root.after(0, lambda: show_error_message(self.root, "错误", error_msg))
     
     def on_drop(self, event):
         """处理文件拖拽事件"""
