@@ -125,9 +125,36 @@ class PhotoWatermarkGUI:
         """当尺寸调整方式改变时"""
         if self.resize_var.get() in ["按比例缩放", "指定宽度", "指定高度"]:
             self.resize_entry.config(state='enabled')
+            
+            # 根据选择更新单位标签
+            if self.resize_var.get() == "按比例缩放":
+                self.resize_unit_label.config(text="%")
+            elif self.resize_var.get() == "指定宽度":
+                self.resize_unit_label.config(text="px")
+                # 设置默认值为当前图片宽度
+                if self.image_paths and 0 <= self.current_image_index < len(self.image_paths):
+                    try:
+                        img = Image.open(self.image_paths[self.current_image_index])
+                        original_width, _ = img.size
+                        self.resize_entry.delete(0, tk.END)
+                        self.resize_entry.insert(0, str(original_width))
+                    except Exception:
+                        pass
+            elif self.resize_var.get() == "指定高度":
+                self.resize_unit_label.config(text="px")
+                # 设置默认值为当前图片高度
+                if self.image_paths and 0 <= self.current_image_index < len(self.image_paths):
+                    try:
+                        img = Image.open(self.image_paths[self.current_image_index])
+                        _, original_height = img.size
+                        self.resize_entry.delete(0, tk.END)
+                        self.resize_entry.insert(0, str(original_height))
+                    except Exception:
+                        pass
         else:
             self.resize_entry.config(state='disabled')
             self.resize_entry.delete(0, tk.END)
+            self.resize_unit_label.config(text="%")
     
     def setup_ui(self):
         """设置用户界面"""
@@ -241,7 +268,13 @@ class PhotoWatermarkGUI:
         self.resize_entry = ttk.Entry(resize_frame, width=10)
         self.resize_entry.pack(side=tk.LEFT, padx=(5, 0))
         self.resize_entry.config(state='disabled')
-        ttk.Label(resize_frame, text="%").pack(side=tk.LEFT)
+        
+        # 动态标签（显示"%"或"px"）
+        self.resize_unit_label = ttk.Label(resize_frame, text="%")
+        self.resize_unit_label.pack(side=tk.LEFT)
+        
+        # 绑定尺寸选项改变事件
+        resize_combo.bind('<<ComboboxSelected>>', self.on_resize_change)
         
         # 导出按钮
         export_btn = ttk.Button(export_frame, text="导出图片", command=self.export_images)
