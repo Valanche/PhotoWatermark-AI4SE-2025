@@ -223,7 +223,12 @@ class PhotoWatermarkGUI:
             new_width = int(img_width * scale)
             new_height = int(img_height * scale)
             
-            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            # 兼容不同版本的Pillow
+            try:
+                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            except AttributeError:
+                # 对于旧版本的Pillow
+                image = image.resize((new_width, new_height), Image.LANCZOS)
             
             # 将图片转换为tkinter可以显示的格式
             self.current_image = ImageTk.PhotoImage(image)
