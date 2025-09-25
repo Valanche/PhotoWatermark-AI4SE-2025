@@ -457,15 +457,18 @@ class PhotoWatermarkGUI:
         if not output_dir:
             return  # 用户取消了操作
         
-        # 确保输出目录不是输入图片的目录
+        # 确保输出目录不是输入图片的目录（完全禁止）
         input_dir = os.path.dirname(self.image_paths[0]) if self.image_paths else ""
-        try:
-            if input_dir and os.path.samefile(output_dir, input_dir):
-                if not messagebox.askyesno("确认", "导出目录与输入目录相同，可能会覆盖原图。是否继续？"):
+        if input_dir:
+            try:
+                if os.path.samefile(output_dir, input_dir):
+                    messagebox.showerror("错误", "禁止导出到原文件夹，以防止覆盖原图！请选择其他目录。")
                     return
-        except OSError:
-            # 如果无法比较路径（例如在不同驱动器上），则继续
-            pass
+            except OSError:
+                # 如果路径在不同驱动器上，使用字符串比较
+                if os.path.normpath(output_dir) == os.path.normpath(input_dir):
+                    messagebox.showerror("错误", "禁止导出到原文件夹，以防止覆盖原图！请选择其他目录。")
+                    return
         
         # 在新线程中执行导出以避免界面冻结
         threading.Thread(target=self._export_process, args=(output_dir,), daemon=True).start()
