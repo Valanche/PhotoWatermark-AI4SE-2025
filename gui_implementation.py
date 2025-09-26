@@ -414,9 +414,15 @@ class PhotoWatermarkGUI:
             image_path = self.image_paths[self.current_image_index]
             image = Image.open(image_path)
             
-            # 调整图片大小以适应预览区域
-            canvas_width = max(self.preview_canvas.winfo_width(), 600)  # 确保有默认大小
-            canvas_height = max(self.preview_canvas.winfo_height(), 400)
+            # 获取预览画布的当前尺寸
+            canvas_width = self.preview_canvas.winfo_width()
+            canvas_height = self.preview_canvas.winfo_height()
+            
+            # 如果画布尺寸不可用，则设置默认尺寸
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width = 600
+                canvas_height = 400
+                self.preview_canvas.config(width=canvas_width, height=canvas_height)
             
             # 保持宽高比缩放
             img_width, img_height = image.size
@@ -442,6 +448,9 @@ class PhotoWatermarkGUI:
                 anchor=tk.CENTER, 
                 image=self.current_image
             )
+            
+            # 绑定窗口大小变化事件，以便动态调整预览图
+            self.preview_canvas.bind("<Configure>", self.on_preview_resize)
             
         except Exception as e:
             error_msg = f"无法加载图片 {image_path}: {str(e)}"
@@ -499,6 +508,15 @@ class PhotoWatermarkGUI:
         
         output_path = os.path.join(output_dir, f"{name}{ext}")
         return output_path
+    
+    def on_preview_resize(self, event):
+        """当预览画布大小改变时重新调整预览图"""
+        # 只有在有图片的情况下才重新绘制
+        if self.image_paths and 0 <= self.current_image_index < len(self.image_paths):
+            # 使用after来防止频繁重绘，提高性能
+            if hasattr(self, '_resize_job'):
+                self.root.after_cancel(self._resize_job)
+            self._resize_job = self.root.after(100, self.display_preview)
     
     def resize_image(self, image):
         """根据用户设置调整图片尺寸"""
