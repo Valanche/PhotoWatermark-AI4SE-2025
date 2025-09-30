@@ -187,6 +187,8 @@ class MainWindow:
         self.watermark_text_var = tk.StringVar(value="Sample Text")
         self.watermark_text_entry = ttk.Entry(text_frame, textvariable=self.watermark_text_var)
         self.watermark_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        # 绑定文本变化事件以实时更新预览
+        self.watermark_text_var.trace_add("write", self.update_preview_delayed)
         
         # 水印透明度设置
         transparency_frame = ttk.Frame(watermark_frame)
@@ -206,6 +208,8 @@ class MainWindow:
         self.watermark_transparency_label = ttk.Label(transparency_frame, text=f"{self.watermark_transparency_var.get()}")
         self.watermark_transparency_var.trace_add("write", self.update_watermark_transparency_label)
         self.watermark_transparency_label.pack(side=tk.LEFT)
+        # 绑定透明度变化事件以实时更新预览
+        self.watermark_transparency_var.trace_add("write", self.update_preview_delayed)
         
         # 水印位置设置
         position_frame = ttk.Frame(watermark_frame)
@@ -225,6 +229,8 @@ class MainWindow:
             width=15
         )
         position_combo.pack(side=tk.LEFT, padx=(5, 0))
+        # 绑定位置变化事件以实时更新预览
+        position_combo.bind('<<ComboboxSelected>>', self.on_watermark_position_change)
 
     def setup_drag_drop(self):
         """设置拖拽功能"""
@@ -261,10 +267,26 @@ class MainWindow:
         # For the transparency scale, we need to enable/disable each widget differently
         # Scale widgets can't be disabled directly, so we'll just leave them enabled for now
         # but they won't matter if the watermark is not enabled during export
+        
+        # Update preview when watermark is enabled/disabled
+        self.display_preview()
     
     def update_watermark_transparency_label(self, *args):
         """更新水印透明度标签"""
         self.watermark_transparency_label.config(text=f"{self.watermark_transparency_var.get()}")
+    
+    def on_watermark_position_change(self, event):
+        """当水印位置改变时更新预览"""
+        self.update_preview_delayed()
+    
+    def update_preview_delayed(self, *args):
+        """延迟更新预览以避免频繁更新"""
+        # 取消之前的更新请求（如果有的话）
+        if hasattr(self, '_preview_update_job'):
+            self.root.after_cancel(self._preview_update_job)
+        
+        # 设置新的更新请求，延迟100毫秒执行
+        self._preview_update_job = self.root.after(100, self.display_preview)
 
     def on_resize_change(self, event=None):
         """当尺寸调整方式改变时"""
@@ -297,6 +319,26 @@ class MainWindow:
             image_path = self.image_paths[self.current_image_index]
             image = Image.open(image_path)
             
+            # 应用实时水印（如果启用）
+            if self.watermark_enabled_var.get():
+                from photowatermark.models.image_processor import ImageProcessor
+                processor = ImageProcessor()
+                
+                # 准备水印设置
+                watermark_settings = {
+                    'text': self.watermark_text_var.get(),
+                    'transparency': self.watermark_transparency_var.get(),
+                    'position': self.watermark_position_var.get(),
+                    'font_size': 30,  # 默认字体大小
+                    'color': (255, 255, 255)  # 默认白色
+                }
+                
+                # 应用水印到图片（但不改变原始图片）
+                image_with_watermark = processor.add_watermark_to_image(image.copy(), watermark_settings)
+                preview_image = image_with_watermark
+            else:
+                preview_image = image
+            
             # 获取预览画布的当前尺寸
             canvas_width = self.preview_canvas.winfo_width()
             canvas_height = self.preview_canvas.winfo_height()
@@ -308,20 +350,20 @@ class MainWindow:
                 self.preview_canvas.config(width=canvas_width, height=canvas_height)
             
             # 保持宽高比缩放
-            img_width, img_height = image.size
+            img_width, img_height = preview_image.size
             scale = min(canvas_width / img_width, canvas_height / img_height)
             new_width = int(img_width * scale)
             new_height = int(img_height * scale)
             
             # 兼容不同版本的Pillow
             try:
-                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                preview_image = preview_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
             except AttributeError:
                 # 对于旧版本的Pillow
-                image = image.resize((new_width, new_height), Image.LANCZOS)
+                preview_image = preview_image.resize((new_width, new_height), Image.LANCZOS)
             
             # 将图片转换为tkinter可以显示的格式
-            self.current_image = ImageTk.PhotoImage(image)
+            self.current_image = ImageTk.PhotoImage(preview_image)
             
             # 清除画布并显示新图片
             self.preview_canvas.delete("all")
@@ -522,13 +564,21 @@ class MainWindow:
                         settings.get('quality', 95)
                     )
                     
-                    # 保存图片
+                    # 处理图片格式转换
                     _, ext = os.path.splitext(output_path)
                     ext = ext.lower()
                     
+                    # 保存图片
                     if ext in ['.jpg', '.jpeg']:
+                        # JPEG不支持透明通道，转换为RGB
+                        if image.mode in ('RGBA', 'LA', 'P'):
+                            if image.mode == 'P':
+                                image = image.convert("RGBA")
+                            image_to_save = image.convert("RGB")
+                        else:
+                            image_to_save = image
                         # 对于JPEG格式，使用用户设置的质量
-                        image.save(output_path, "JPEG", quality=settings.get('quality', 95), exif=image.info.get('exif', b''))
+                        image_to_save.save(output_path, "JPEG", quality=settings.get('quality', 95), exif=image.info.get('exif', b''))
                     elif ext == '.png':
                         # 对于PNG格式，保存时保留透明通道
                         image.save(output_path, "PNG", exif=image.info.get('exif', b''))

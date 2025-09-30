@@ -74,14 +74,7 @@ class MainController:
                         # Apply watermark to the image
                         image = self.image_processor.add_watermark_to_image(image, watermark_settings)
                     
-                    # Process the image
-                    image = self.image_processor.process_image_for_export(
-                        image,
-                        settings.get('format_rule', '原格式'),
-                        settings.get('quality', 95)
-                    )
-                    
-                    # Resize image if needed
+                    # Resize image if needed first
                     # Get original dimensions from the image if not provided in settings
                     original_width, original_height = image.size
                     image = self.image_processor.resize_image(
@@ -92,8 +85,15 @@ class MainController:
                         settings.get('original_height', original_height)
                     )
                     
-                    # Save the processed image
+                    # Process the image for export format (handles RGBA to RGB conversion for JPEG)
                     _, ext = os.path.splitext(output_path)
+                    image = self.image_processor.process_image_for_export(
+                        image,
+                        ext,  # Use actual output extension
+                        settings.get('quality', 95)
+                    )
+                    
+                    # Save the processed image
                     ext = ext.lower()
                     
                     if ext in ['.jpg', '.jpeg']:
