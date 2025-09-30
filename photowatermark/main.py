@@ -13,7 +13,16 @@ from photowatermark.controllers.main_controller import MainController
 
 
 def main():
-    app = MainController()
+    # Create the main window first
+    from photowatermark.views.main_window import MainWindow
+    main_window = MainWindow()
+    
+    # Pass the window reference to the controller
+    app = MainController(view=main_window)
+    # Set the controller in the window so it can call controller methods
+    main_window.controller = app
+    
+    # Run the application
     app.run()
 
 

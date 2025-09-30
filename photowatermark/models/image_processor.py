@@ -1,7 +1,11 @@
 """
 Image processing module for the PhotoWatermark-AI4SE application.
 """
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
+try:
+    from PIL import ImageFont
+except ImportError:
+    ImageFont = None
 import os
 from typing import List
 
@@ -95,3 +99,92 @@ class ImageProcessor:
             image = image.convert("RGB")
         
         return image
+
+    def add_watermark_to_image(self, image, watermark_settings):
+        """为图片添加文本水印"""
+        # Convert to RGBA if not already (to support transparency)
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+            
+        # Create a transparent layer for the watermark
+        txt_layer = Image.new('RGBA', image.size, (255, 255, 255, 0))
+        draw = ImageDraw.Draw(txt_layer)
+        
+        # Get watermark settings
+        text = watermark_settings.get('text', 'Sample Text')
+        font_size = watermark_settings.get('font_size', 30)
+        color = watermark_settings.get('color', (255, 255, 255))
+        transparency = watermark_settings.get('transparency', 50)
+        position = watermark_settings.get('position', 'bottom-right')
+        
+        # Calculate transparency value (0-255)
+        alpha = int((transparency / 100) * 255)
+        
+        # Ensure alpha is within valid range
+        alpha = max(0, min(255, alpha))
+        
+        # Create color with transparency
+        rgba_color = (*color, alpha)
+        
+        # Handle font loading safely
+        font = None
+        if ImageFont:
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except:
+                try:
+                    font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+                except:
+                    # Use default font if no TrueType fonts are available
+                    font = ImageFont.load_default()
+        else:
+            # If ImageFont is not available, use default
+            font = None
+        
+        # Calculate text size
+        text_width = 0
+        text_height = 0
+        
+        if font and ImageFont:
+            try:
+                # For Pillow >= 10.0.0
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            except AttributeError:
+                # For older versions of Pillow
+                try:
+                    text_width, text_height = draw.textsize(text, font=font)
+                except:
+                    # Fallback to a default size
+                    text_width, text_height = font_size * len(text) // 2, font_size
+        else:
+            # If no font is available, estimate text size
+            text_width, text_height = font_size * len(text) // 2, font_size
+        
+        # Determine position
+        width, height = image.size
+        margin = 10
+        
+        if position == 'top-left':
+            x, y = margin, margin
+        elif position == 'top-center':
+            x, y = (width - text_width) // 2, margin
+        elif position == 'top-right':
+            x, y = width - text_width - margin, margin
+        elif position == 'center':
+            x, y = (width - text_width) // 2, (height - text_height) // 2
+        elif position == 'bottom-left':
+            x, y = margin, height - text_height - margin
+        elif position == 'bottom-center':
+            x, y = (width - text_width) // 2, height - text_height - margin
+        else:  # Default to bottom-right
+            x, y = width - text_width - margin, height - text_height - margin
+        
+        # Draw the text
+        draw.text((x, y), text, fill=rgba_color, font=font)
+        
+        # Composite the text layer onto the original image
+        watermarked = Image.alpha_composite(image, txt_layer)
+        
+        return watermarked

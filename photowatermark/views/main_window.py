@@ -49,6 +49,17 @@ class MainWindow:
         self.resize_entry = None
         self.resize_unit_label = None
         
+        # Watermark settings variables
+        self.watermark_enabled_var = None
+        self.watermark_text_var = None
+        self.watermark_text_entry = None
+        self.watermark_transparency_var = None
+        self.watermark_transparency_label = None
+        self.watermark_position_var = None
+        
+        # Controller reference (will be set from main.py)
+        self.controller = None
+        
         self.setup_ui()
         
         # 设置拖拽事件（如果支持）
@@ -153,6 +164,67 @@ class MainWindow:
         # 导出按钮
         export_btn = ttk.Button(export_frame, text="导出图片", command=self.export_images)
         export_btn.pack(pady=5)
+        
+        # 水印设置区域
+        watermark_frame = ttk.LabelFrame(main_frame, text="水印设置")
+        watermark_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # 水印启用复选框
+        self.watermark_enabled_var = tk.BooleanVar(value=False)
+        watermark_enabled_check = ttk.Checkbutton(
+            watermark_frame, 
+            text="启用文本水印", 
+            variable=self.watermark_enabled_var,
+            command=self.on_watermark_enabled_change
+        )
+        watermark_enabled_check.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 水印文字设置
+        text_frame = ttk.Frame(watermark_frame)
+        text_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(text_frame, text="水印文字:").pack(side=tk.LEFT)
+        self.watermark_text_var = tk.StringVar(value="Sample Text")
+        self.watermark_text_entry = ttk.Entry(text_frame, textvariable=self.watermark_text_var)
+        self.watermark_text_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        
+        # 水印透明度设置
+        transparency_frame = ttk.Frame(watermark_frame)
+        transparency_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.watermark_transparency_var = tk.IntVar(value=50)
+        transparency_label = ttk.Label(transparency_frame, text="水印透明度:")
+        transparency_label.pack(side=tk.LEFT)
+        transparency_scale = ttk.Scale(
+            transparency_frame, 
+            from_=0, 
+            to=100, 
+            variable=self.watermark_transparency_var, 
+            orient=tk.HORIZONTAL
+        )
+        transparency_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        self.watermark_transparency_label = ttk.Label(transparency_frame, text=f"{self.watermark_transparency_var.get()}")
+        self.watermark_transparency_var.trace_add("write", self.update_watermark_transparency_label)
+        self.watermark_transparency_label.pack(side=tk.LEFT)
+        
+        # 水印位置设置
+        position_frame = ttk.Frame(watermark_frame)
+        position_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(position_frame, text="水印位置:").pack(side=tk.LEFT)
+        self.watermark_position_var = tk.StringVar(value="bottom-right")
+        position_options = [
+            "top-left", "top-center", "top-right",
+            "center", "bottom-left", "bottom-center", "bottom-right"
+        ]
+        position_combo = ttk.Combobox(
+            position_frame, 
+            textvariable=self.watermark_position_var, 
+            values=position_options, 
+            state="readonly", 
+            width=15
+        )
+        position_combo.pack(side=tk.LEFT, padx=(5, 0))
 
     def setup_drag_drop(self):
         """设置拖拽功能"""
@@ -179,6 +251,20 @@ class MainWindow:
     def update_quality_label(self, *args):
         """更新质量标签"""
         self.quality_value_label.config(text=f"{self.quality_var.get()}")
+    
+    def on_watermark_enabled_change(self):
+        """当水印启用状态改变时"""
+        enabled = self.watermark_enabled_var.get()
+        state = 'normal' if enabled else 'disabled'
+        
+        self.watermark_text_entry.config(state=state)
+        # For the transparency scale, we need to enable/disable each widget differently
+        # Scale widgets can't be disabled directly, so we'll just leave them enabled for now
+        # but they won't matter if the watermark is not enabled during export
+    
+    def update_watermark_transparency_label(self, *args):
+        """更新水印透明度标签"""
+        self.watermark_transparency_label.config(text=f"{self.watermark_transparency_var.get()}")
 
     def on_resize_change(self, event=None):
         """当尺寸调整方式改变时"""
@@ -340,9 +426,130 @@ class MainWindow:
                     messagebox.showerror("错误", "禁止导出到原文件夹，以防止覆盖原图！请选择其他目录。")
                     return
         
-        # 在新线程中执行导出以避免界面冻结
-        import threading
-        threading.Thread(target=self._export_process, args=(output_dir,), daemon=True).start()
+        # Prepare settings dict
+        settings = {
+            'naming_rule': self.naming_var.get(),
+            'naming_value': self.naming_entry.get().strip(),
+            'format_rule': self.format_var.get(),
+            'quality': self.quality_var.get(),
+            'resize_option': self.resize_var.get(),
+            'resize_value': self.resize_entry.get(),
+            
+            # Watermark settings
+            'watermark_enabled': self.watermark_enabled_var.get(),
+            'watermark_text': self.watermark_text_var.get(),
+            'watermark_transparency': self.watermark_transparency_var.get(),
+            'watermark_position': self.watermark_position_var.get(),
+            'watermark_font_size': 30,  # Default font size
+            'watermark_color': (255, 255, 255)  # Default white color
+        }
+        
+        # If controller is available, use it; otherwise use direct approach
+        if self.controller:
+            self.controller.set_export_callback(self._on_export_complete)
+            self.controller.export_images(self.image_paths, output_dir, settings)
+        else:
+            # Fallback to direct export (for standalone testing)
+            import threading
+            threading.Thread(target=self._export_process, args=(output_dir, settings), daemon=True).start()
+    
+    def _export_process(self, output_dir, settings=None):
+        """在后台线程中执行导出操作"""
+        if settings is None:
+            # Fallback to current UI values if settings not provided
+            settings = {
+                'naming_rule': self.naming_var.get(),
+                'naming_value': self.naming_entry.get().strip(),
+                'format_rule': self.format_var.get(),
+                'quality': self.quality_var.get(),
+                'resize_option': self.resize_var.get(),
+                'resize_value': self.resize_entry.get(),
+                
+                # Watermark settings
+                'watermark_enabled': self.watermark_enabled_var.get(),
+                'watermark_text': self.watermark_text_var.get(),
+                'watermark_transparency': self.watermark_transparency_var.get(),
+                'watermark_position': self.watermark_position_var.get(),
+                'watermark_font_size': 30,  # Default font size
+                'watermark_color': (255, 255, 255)  # Default white color
+            }
+        
+        try:
+            success_count = 0
+            for i, img_path in enumerate(self.image_paths):
+                try:
+                    # 生成输出文件名
+                    from photowatermark.models.image_processor import ImageProcessor
+                    processor = ImageProcessor()
+                    output_path = processor.generate_output_filename(
+                        img_path, 
+                        output_dir,
+                        settings.get('naming_rule'),
+                        settings.get('naming_value'),
+                        settings.get('format_rule')
+                    )
+                    
+                    # 打开图片
+                    image = Image.open(img_path)
+                    
+                    # 根据设置调整图片尺寸
+                    image = processor.resize_image(
+                        image, 
+                        settings.get('resize_option'), 
+                        settings.get('resize_value'),
+                        image.size[0],  # original width
+                        image.size[1]   # original height
+                    )
+                    
+                    # Apply watermark if enabled
+                    if settings.get('watermark_enabled', False):
+                        # Prepare watermark settings
+                        watermark_settings = {
+                            'text': settings.get('watermark_text', 'Sample Text'),
+                            'transparency': settings.get('watermark_transparency', 50),
+                            'position': settings.get('watermark_position', 'bottom-right'),
+                            'font_size': settings.get('watermark_font_size', 30),
+                            'color': settings.get('watermark_color', (255, 255, 255))
+                        }
+                        
+                        # Apply watermark to the image
+                        image = processor.add_watermark_to_image(image, watermark_settings)
+                    
+                    # 处理图片以准备导出
+                    image = processor.process_image_for_export(
+                        image, 
+                        os.path.splitext(output_path)[1], 
+                        settings.get('quality', 95)
+                    )
+                    
+                    # 保存图片
+                    _, ext = os.path.splitext(output_path)
+                    ext = ext.lower()
+                    
+                    if ext in ['.jpg', '.jpeg']:
+                        # 对于JPEG格式，使用用户设置的质量
+                        image.save(output_path, "JPEG", quality=settings.get('quality', 95), exif=image.info.get('exif', b''))
+                    elif ext == '.png':
+                        # 对于PNG格式，保存时保留透明通道
+                        image.save(output_path, "PNG", exif=image.info.get('exif', b''))
+                    else:
+                        # 对于其他格式，按原样保存
+                        image.save(output_path, exif=image.info.get('exif', b''))
+                    
+                    success_count += 1
+                except Exception as e:
+                    print(f"导出文件失败 {img_path}: {str(e)}")
+            
+            # 在主线程中显示完成消息
+            self.root.after(0, lambda: messagebox.showinfo("完成", f"导出完毕！成功导出 {success_count} 个文件。"))
+
+        except Exception as e:
+            error_msg = f"导出过程中发生错误: {str(e)}"
+            self.root.after(0, lambda: show_error_message(self.root, "错误", error_msg))
+    
+    def _on_export_complete(self, success_count):
+        """Callback when export is completed"""
+        messagebox.showinfo("完成", f"导出完毕！成功导出 {success_count} 个文件。")
     
     def on_drop(self, event):
         """处理文件拖拽事件"""
@@ -406,6 +613,22 @@ class MainWindow:
                         os.path.splitext(output_path)[1], 
                         self.quality_var.get()
                     )
+                    
+                    # Apply watermark if enabled
+                    if self.watermark_enabled_var.get():
+                        # Prepare watermark settings
+                        watermark_settings = {
+                            'text': self.watermark_text_var.get(),
+                            'transparency': self.watermark_transparency_var.get(),
+                            'position': self.watermark_position_var.get(),
+                            'font_size': 30,  # Default font size
+                            'color': (255, 255, 255)  # Default white color
+                        }
+                        
+                        # Apply watermark to the image
+                        from photowatermark.models.image_processor import ImageProcessor
+                        processor = ImageProcessor()
+                        image = processor.add_watermark_to_image(image, watermark_settings)
                     
                     # 保存图片
                     _, ext = os.path.splitext(output_path)

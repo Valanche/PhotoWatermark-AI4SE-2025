@@ -3,6 +3,7 @@ Main controller for the PhotoWatermark-AI4SE application.
 This module handles the application logic and coordinates between the view and model.
 """
 import threading
+import os
 from tkinter import messagebox
 from PIL import Image
 
@@ -12,8 +13,11 @@ from photowatermark.utils.dialogs import show_error_message
 
 
 class MainController:
-    def __init__(self):
-        self.main_window = MainWindow()
+    def __init__(self, view=None):
+        if view is not None:
+            self.main_window = view
+        else:
+            self.main_window = MainWindow()
         self.image_processor = ImageProcessor()
         self.export_callback = None
 
@@ -57,6 +61,19 @@ class MainController:
                     # Open the image first
                     image = Image.open(img_path)
                     
+                    # Apply watermark if enabled
+                    if settings.get('watermark_enabled', False):
+                        watermark_settings = {
+                            'text': settings.get('watermark_text', 'Sample Text'),
+                            'transparency': settings.get('watermark_transparency', 50),
+                            'position': settings.get('watermark_position', 'bottom-right'),
+                            'font_size': settings.get('watermark_font_size', 30),
+                            'color': settings.get('watermark_color', (255, 255, 255))
+                        }
+                        
+                        # Apply watermark to the image
+                        image = self.image_processor.add_watermark_to_image(image, watermark_settings)
+                    
                     # Process the image
                     image = self.image_processor.process_image_for_export(
                         image,
@@ -65,12 +82,14 @@ class MainController:
                     )
                     
                     # Resize image if needed
+                    # Get original dimensions from the image if not provided in settings
+                    original_width, original_height = image.size
                     image = self.image_processor.resize_image(
                         image,
                         settings.get('resize_option', '原图尺寸'),
                         settings.get('resize_value', ''),
-                        settings.get('original_width'),
-                        settings.get('original_height')
+                        settings.get('original_width', original_width),
+                        settings.get('original_height', original_height)
                     )
                     
                     # Save the processed image
@@ -109,8 +128,17 @@ class MainController:
 
     def _on_export_complete(self, success_count):
         """Called when export is completed"""
-        messagebox.showinfo("完成", f"导出完毕！成功导出 {success_count} 个文件。")
+        # Since the controller doesn't have access to the UI here, we'll rely on the callback
+        # to handle UI updates
         
         # Call the custom callback if provided
         if self.export_callback:
             self.export_callback(success_count)
+        else:
+            # Fallback - this should ideally be handled by the UI layer
+            # Import messagebox here to avoid circular imports
+            try:
+                from tkinter import messagebox
+                messagebox.showinfo("完成", f"导出完毕！成功导出 {success_count} 个文件。") 
+            except:
+                print(f"导出完毕！成功导出 {success_count} 个文件。")  # Fallback to console
