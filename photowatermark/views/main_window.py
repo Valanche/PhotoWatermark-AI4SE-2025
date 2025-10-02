@@ -73,6 +73,9 @@ class MainWindow:
         self.config_name_var = None
         self.configs_dir = os.path.join(os.path.expanduser("~"), ".photowatermark", "configs")
         
+        # Application state variables
+        self.app_state_file = os.path.join(os.path.expanduser("~"), ".photowatermark", "app_state.json")
+        
         # Controller reference (will be set from main.py)
         self.controller = None
         
@@ -81,9 +84,15 @@ class MainWindow:
         # 确保配置目录存在
         os.makedirs(self.configs_dir, exist_ok=True)
         
+        # 加载上次的应用程序状态
+        self.load_app_state()
+        
         # 设置拖拽事件（如果支持）
         if HAS_DND:
             self.setup_drag_drop()
+        
+        # 绑定窗口关闭事件以保存状态
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def setup_ui(self):
         """设置用户界面"""
@@ -1010,6 +1019,126 @@ class MainWindow:
         except Exception as e:
             error_msg = f"删除配置时发生错误: {str(e)}"
             show_error_message(self.root, "错误", error_msg)
+    
+    def save_app_state(self):
+        """保存应用程序状态"""
+        try:
+            # 确保配置目录存在
+            os.makedirs(os.path.dirname(self.app_state_file), exist_ok=True)
+            
+            # 获取当前应用程序状态
+            app_state = {
+                'window_width': self.root.winfo_width(),
+                'window_height': self.root.winfo_height(),
+                'window_x': self.root.winfo_x(),
+                'window_y': self.root.winfo_y(),
+                'watermark_enabled': self.watermark_enabled_var.get() if self.watermark_enabled_var else False,
+                'watermark_text': self.watermark_text_var.get() if self.watermark_text_var else 'Sample Text',
+                'watermark_transparency': self.watermark_transparency_var.get() if self.watermark_transparency_var else 50,
+                'watermark_position': self.watermark_position_var.get() if self.watermark_position_var else 'bottom-right',
+                'watermark_font_size': self.watermark_font_size_var.get() if self.watermark_font_size_var else 30,
+                'custom_watermark_x': self.custom_watermark_x,
+                'custom_watermark_y': self.custom_watermark_y,
+                'naming_rule': self.naming_var.get() if self.naming_var else '保留原名',
+                'naming_value': self.naming_entry.get() if self.naming_entry else '',
+                'format_rule': self.format_var.get() if self.format_var else '原格式',
+                'quality': self.quality_var.get() if self.quality_var else 95,
+                'resize_option': self.resize_var.get() if self.resize_var else '原图尺寸',
+                'resize_value': self.resize_entry.get() if self.resize_entry else ''
+            }
+            
+            # 保存状态到文件
+            with open(self.app_state_file, 'w', encoding='utf-8') as f:
+                json.dump(app_state, f, ensure_ascii=False, indent=2)
+                
+        except Exception as e:
+            print(f"保存应用程序状态时发生错误: {str(e)}")
+    
+    def load_app_state(self):
+        """加载应用程序状态"""
+        try:
+            if not os.path.exists(self.app_state_file):
+                return  # 如果状态文件不存在，则使用默认值
+            
+            # 从文件加载状态
+            with open(self.app_state_file, 'r', encoding='utf-8') as f:
+                app_state = json.load(f)
+            
+            # 应用窗口状态
+            if 'window_width' in app_state and 'window_height' in app_state:
+                width = app_state['window_width']
+                height = app_state['window_height']
+                # 确保窗口大小在合理范围内
+                width = max(800, min(width, 1920))
+                height = max(600, min(height, 1080))
+                self.root.geometry(f"{width}x{height}")
+            
+            # 应用窗口位置
+            if 'window_x' in app_state and 'window_y' in app_state:
+                x = app_state['window_x']
+                y = app_state['window_y']
+                # 确保窗口位置在屏幕范围内
+                x = max(0, x)
+                y = max(0, y)
+                self.root.geometry(f"+{x}+{y}")
+            
+            # 应用水印设置
+            if 'watermark_enabled' in app_state:
+                self.watermark_enabled_var.set(app_state['watermark_enabled'])
+                
+            if 'watermark_text' in app_state:
+                self.watermark_text_var.set(app_state['watermark_text'])
+                
+            if 'watermark_transparency' in app_state:
+                self.watermark_transparency_var.set(app_state['watermark_transparency'])
+                
+            if 'watermark_position' in app_state:
+                self.watermark_position_var.set(app_state['watermark_position'])
+                
+            if 'watermark_font_size' in app_state:
+                self.watermark_font_size_var.set(app_state['watermark_font_size'])
+                
+            # 应用自定义坐标
+            if 'custom_watermark_x' in app_state:
+                self.custom_watermark_x = app_state['custom_watermark_x']
+            if 'custom_watermark_y' in app_state:
+                self.custom_watermark_y = app_state['custom_watermark_y']
+            
+            # 应用导出设置
+            if 'naming_rule' in app_state:
+                self.naming_var.set(app_state['naming_rule'])
+                
+            if 'naming_value' in app_state:
+                self.naming_entry.delete(0, tk.END)
+                self.naming_entry.insert(0, app_state['naming_value'])
+                
+            if 'format_rule' in app_state:
+                self.format_var.set(app_state['format_rule'])
+                
+            if 'quality' in app_state:
+                self.quality_var.set(app_state['quality'])
+                
+            if 'resize_option' in app_state:
+                self.resize_var.set(app_state['resize_option'])
+                
+            if 'resize_value' in app_state:
+                self.resize_entry.delete(0, tk.END)
+                self.resize_entry.insert(0, app_state['resize_value'])
+                
+            # 更新UI以反映新设置
+            self.on_naming_change()
+            self.on_resize_change()
+            self.on_watermark_enabled_change()
+            
+        except Exception as e:
+            print(f"加载应用程序状态时发生错误: {str(e)}")
+    
+    def on_closing(self):
+        """窗口关闭时的处理"""
+        # 保存当前应用程序状态
+        self.save_app_state()
+        # 销毁窗口
+        self.root.destroy()
 
     def _export_process(self, output_dir):
         """在后台线程中执行导出操作"""
