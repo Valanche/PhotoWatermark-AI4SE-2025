@@ -189,9 +189,17 @@ class MainWindow:
         # 绑定尺寸选项改变事件
         resize_combo.bind('<<ComboboxSelected>>', self.on_resize_change)
         
-        # 导出按钮
-        export_btn = ttk.Button(export_frame, text="导出图片", command=self.export_images)
-        export_btn.pack(pady=5)
+        # 导出按钮框架
+        export_btn_frame = ttk.Frame(export_frame)
+        export_btn_frame.pack(pady=5)
+        
+        # 导出当前图片按钮
+        export_current_btn = ttk.Button(export_btn_frame, text="导出当前图片", command=self.export_current_image)
+        export_current_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 导出所有图片按钮
+        export_btn = ttk.Button(export_btn_frame, text="导出图片", command=self.export_images)
+        export_btn.pack(side=tk.LEFT)
         
         # 水印设置区域
         watermark_frame = ttk.LabelFrame(main_frame, text="水印设置")
@@ -1132,6 +1140,140 @@ class MainWindow:
             
         except Exception as e:
             print(f"加载应用程序状态时发生错误: {str(e)}")
+    
+    def export_current_image(self):
+        """导出当前选中的图片"""
+        if not self.image_paths or self.current_image_index >= len(self.image_paths):
+            messagebox.showwarning("警告", "没有选中的图片。")
+            return
+        
+        # 选择输出目录
+        output_dir = filedialog.askdirectory(title="选择导出目录")
+        if not output_dir:
+            return  # 用户取消了操作
+        
+        # 确保输出目录不是输入图片的目录（完全禁止）
+        current_image_path = self.image_paths[self.current_image_index]
+        input_dir = os.path.dirname(current_image_path)
+        
+        if input_dir:
+            try:
+                if os.path.samefile(output_dir, input_dir):
+                    messagebox.showerror("错误", "禁止导出到原文件夹，以防止覆盖原图！请选择其他目录。")
+                    return
+            except OSError:
+                # 如果路径在不同驱动器上，使用字符串比较
+                if os.path.normpath(output_dir) == os.path.normpath(input_dir):
+                    messagebox.showerror("错误", "禁止导出到原文件夹，以防止覆盖原图！请选择其他目录。")
+                    return
+        
+        # 准备设置字典
+        settings = {
+            'naming_rule': self.naming_var.get(),
+            'naming_value': self.naming_entry.get().strip(),
+            'format_rule': self.format_var.get(),
+            'quality': self.quality_var.get(),
+            'resize_option': self.resize_var.get(),
+            'resize_value': self.resize_entry.get(),
+            
+            # Watermark settings
+            'watermark_enabled': self.watermark_enabled_var.get(),
+            'watermark_text': self.watermark_text_var.get(),
+            'watermark_transparency': self.watermark_transparency_var.get(),
+            'watermark_position': self.watermark_position_var.get(),
+            'watermark_font_size': self.watermark_font_size_var.get(),
+            'watermark_color': (255, 255, 255)  # Default white color
+        }
+        
+        # 如果使用自定义位置，则添加自定义坐标
+        if (self.watermark_position_var.get() == "custom" and 
+            self.custom_watermark_x is not None and 
+            self.custom_watermark_y is not None):
+            settings['watermark_custom_x'] = self.custom_watermark_x
+            settings['watermark_custom_y'] = self.custom_watermark_y
+        
+        # 只导出当前选中的图片
+        current_image_path = self.image_paths[self.current_image_index]
+        
+        try:
+            from photowatermark.models.image_processor import ImageProcessor
+            processor = ImageProcessor()
+            
+            # 生成输出文件名
+            output_path = processor.generate_output_filename(
+                current_image_path, 
+                output_dir,
+                settings.get('naming_rule'),
+                settings.get('naming_value'),
+                settings.get('format_rule')
+            )
+            
+            # 打开图片
+            image = Image.open(current_image_path)
+            
+            # 根据设置调整图片尺寸
+            image = processor.resize_image(
+                image, 
+                settings.get('resize_option'), 
+                settings.get('resize_value'),
+                image.size[0],  # original width
+                image.size[1]   # original height
+            )
+            
+            # 如果启用水印，应用水印
+            if settings.get('watermark_enabled', False):
+                # 准备水印设置
+                watermark_settings = {
+                    'text': settings.get('watermark_text', 'Sample Text'),
+                    'transparency': settings.get('watermark_transparency', 50),
+                    'position': settings.get('watermark_position', 'bottom-right'),
+                    'font_size': settings.get('watermark_font_size', 30),
+                    'color': settings.get('watermark_color', (255, 255, 255))
+                }
+                
+                # 如果是自定义位置，添加坐标
+                if (settings.get('watermark_position') == "custom" and 
+                    'watermark_custom_x' in settings and 
+                    'watermark_custom_y' in settings):
+                    watermark_settings['custom_x'] = settings['watermark_custom_x']
+                    watermark_settings['custom_y'] = settings['watermark_custom_y']
+                
+                # 应用水印到图片
+                image = processor.add_watermark_to_image(image, watermark_settings)
+            
+            # 处理图片以准备导出
+            image = processor.process_image_for_export(
+                image, 
+                os.path.splitext(output_path)[1], 
+                settings.get('quality', 95)
+            )
+            
+            # 处理图片格式转换并保存
+            _, ext = os.path.splitext(output_path)
+            ext = ext.lower()
+            
+            if ext in ['.jpg', '.jpeg']:
+                # JPEG不支持透明通道，转换为RGB
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    if image.mode == 'P':
+                        image = image.convert("RGBA")
+                    image_to_save = image.convert("RGB")
+                else:
+                    image_to_save = image
+                # 对于JPEG格式，使用用户设置的质量
+                image_to_save.save(output_path, "JPEG", quality=settings.get('quality', 95), exif=image.info.get('exif', b''))
+            elif ext == '.png':
+                # 对于PNG格式，保存时保留透明通道
+                image.save(output_path, "PNG", exif=image.info.get('exif', b''))
+            else:
+                # 对于其他格式，按原样保存
+                image.save(output_path, exif=image.info.get('exif', b''))
+            
+            messagebox.showinfo("成功", f"当前图片已导出到:\n{output_path}")
+            
+        except Exception as e:
+            error_msg = f"导出当前图片时发生错误: {str(e)}"
+            show_error_message(self.root, "错误", error_msg)
     
     def on_closing(self):
         """窗口关闭时的处理"""
