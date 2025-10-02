@@ -17,6 +17,7 @@ except ImportError:
 
 from photowatermark.views.widgets.thumbnail_list import ThumbnailList
 from photowatermark.utils.dialogs import show_error_message
+from photowatermark.utils.constants import *
 
 
 class MainWindow:
@@ -895,6 +896,74 @@ class MainWindow:
             else:
                 messagebox.showinfo("提示", "拖拽的文件中没有找到支持的图片格式。")
     
+    def _process_and_save_image(self, input_path, output_path, settings):
+        """处理单张图片：应用水印、调整尺寸、保存"""
+        from photowatermark.models.image_processor import ImageProcessor
+        processor = ImageProcessor()
+        
+        # 打开图片
+        image = Image.open(input_path)
+        
+        # 如果启用水印，应用水印
+        if settings.get('watermark_enabled', False):
+            # 准备水印设置
+            watermark_settings = {
+                'text': settings.get('watermark_text', 'Sample Text'),
+                'transparency': settings.get('watermark_transparency', DEFAULT_WATERMARK_TRANSPARENCY),
+                'position': settings.get('watermark_position', DEFAULT_WATERMARK_POSITION),
+                'font_size': settings.get('watermark_font_size', DEFAULT_WATERMARK_SIZE),
+                'color': settings.get('watermark_color', DEFAULT_WATERMARK_COLOR)
+            }
+            
+            # 如果是自定义位置，添加坐标
+            if (settings.get('watermark_position') == "custom" and 
+                'watermark_custom_x' in settings and 
+                'watermark_custom_y' in settings):
+                watermark_settings['custom_x'] = settings['watermark_custom_x']
+                watermark_settings['custom_y'] = settings['watermark_custom_y']
+            
+            # 应用水印到图片
+            image = processor.add_watermark_to_image(image, watermark_settings)
+        
+        # 根据设置调整图片尺寸（在水印添加后）
+        original_image = Image.open(input_path)  # Reopen to get original size
+        original_width, original_height = original_image.size
+        image = processor.resize_image(
+            image, 
+            settings.get('resize_option'), 
+            settings.get('resize_value'),
+            original_width,
+            original_height
+        )
+        
+        # 处理图片以准备导出
+        image = processor.process_image_for_export(
+            image, 
+            os.path.splitext(output_path)[1], 
+            settings.get('quality', 95)
+        )
+        
+        # 处理图片格式转换并保存
+        _, ext = os.path.splitext(output_path)
+        ext = ext.lower()
+        
+        if ext in ['.jpg', '.jpeg']:
+            # JPEG不支持透明通道，转换为RGB
+            if image.mode in ('RGBA', 'LA', 'P'):
+                if image.mode == 'P':
+                    image = image.convert("RGBA")
+                image_to_save = image.convert("RGB")
+            else:
+                image_to_save = image
+            # 对于JPEG格式，使用用户设置的质量
+            image_to_save.save(output_path, "JPEG", quality=settings.get('quality', 95), exif=image.info.get('exif', b''))
+        elif ext == '.png':
+            # 对于PNG格式，保存时保留透明通道
+            image.save(output_path, "PNG", exif=image.info.get('exif', b''))
+        else:
+            # 对于其他格式，按原样保存
+            image.save(output_path, exif=image.info.get('exif', b''))
+    
     def save_config(self):
         """保存当前水印配置"""
         try:
@@ -1196,6 +1265,7 @@ class MainWindow:
         current_image_path = self.image_paths[self.current_image_index]
         
         try:
+            # 使用通用的导出函数来导出单张图片
             from photowatermark.models.image_processor import ImageProcessor
             processor = ImageProcessor()
             
@@ -1208,66 +1278,8 @@ class MainWindow:
                 settings.get('format_rule')
             )
             
-            # 打开图片
-            image = Image.open(current_image_path)
-            
-            # 根据设置调整图片尺寸
-            image = processor.resize_image(
-                image, 
-                settings.get('resize_option'), 
-                settings.get('resize_value'),
-                image.size[0],  # original width
-                image.size[1]   # original height
-            )
-            
-            # 如果启用水印，应用水印
-            if settings.get('watermark_enabled', False):
-                # 准备水印设置
-                watermark_settings = {
-                    'text': settings.get('watermark_text', 'Sample Text'),
-                    'transparency': settings.get('watermark_transparency', 50),
-                    'position': settings.get('watermark_position', 'bottom-right'),
-                    'font_size': settings.get('watermark_font_size', 30),
-                    'color': settings.get('watermark_color', (255, 255, 255))
-                }
-                
-                # 如果是自定义位置，添加坐标
-                if (settings.get('watermark_position') == "custom" and 
-                    'watermark_custom_x' in settings and 
-                    'watermark_custom_y' in settings):
-                    watermark_settings['custom_x'] = settings['watermark_custom_x']
-                    watermark_settings['custom_y'] = settings['watermark_custom_y']
-                
-                # 应用水印到图片
-                image = processor.add_watermark_to_image(image, watermark_settings)
-            
-            # 处理图片以准备导出
-            image = processor.process_image_for_export(
-                image, 
-                os.path.splitext(output_path)[1], 
-                settings.get('quality', 95)
-            )
-            
-            # 处理图片格式转换并保存
-            _, ext = os.path.splitext(output_path)
-            ext = ext.lower()
-            
-            if ext in ['.jpg', '.jpeg']:
-                # JPEG不支持透明通道，转换为RGB
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    if image.mode == 'P':
-                        image = image.convert("RGBA")
-                    image_to_save = image.convert("RGB")
-                else:
-                    image_to_save = image
-                # 对于JPEG格式，使用用户设置的质量
-                image_to_save.save(output_path, "JPEG", quality=settings.get('quality', 95), exif=image.info.get('exif', b''))
-            elif ext == '.png':
-                # 对于PNG格式，保存时保留透明通道
-                image.save(output_path, "PNG", exif=image.info.get('exif', b''))
-            else:
-                # 对于其他格式，按原样保存
-                image.save(output_path, exif=image.info.get('exif', b''))
+            # 使用通用的导出处理函数
+            self._process_and_save_image(current_image_path, output_path, settings)
             
             messagebox.showinfo("成功", f"当前图片已导出到:\n{output_path}")
             
@@ -1288,63 +1300,44 @@ class MainWindow:
             success_count = 0
             for i, img_path in enumerate(self.image_paths):
                 try:
+                    # 构建设置字典，用于调用通用处理函数
+                    current_settings = {
+                        'naming_rule': self.naming_var.get(),
+                        'naming_value': self.naming_entry.get().strip(),
+                        'format_rule': self.format_var.get(),
+                        'quality': self.quality_var.get(),
+                        'resize_option': self.resize_var.get(),
+                        'resize_value': self.resize_entry.get(),
+                        
+                        # Watermark settings
+                        'watermark_enabled': self.watermark_enabled_var.get(),
+                        'watermark_text': self.watermark_text_var.get(),
+                        'watermark_transparency': self.watermark_transparency_var.get(),
+                        'watermark_position': self.watermark_position_var.get(),
+                        'watermark_font_size': self.watermark_font_size_var.get(),
+                        'watermark_color': DEFAULT_WATERMARK_COLOR  # Default white color
+                    }
+                    
+                    # 如果使用自定义位置，则添加自定义坐标
+                    if (self.watermark_position_var.get() == "custom" and 
+                        self.custom_watermark_x is not None and 
+                        self.custom_watermark_y is not None):
+                        current_settings['watermark_custom_x'] = self.custom_watermark_x
+                        current_settings['watermark_custom_y'] = self.custom_watermark_y
+                    
                     # 生成输出文件名
                     from photowatermark.models.image_processor import ImageProcessor
                     processor = ImageProcessor()
                     output_path = processor.generate_output_filename(
                         img_path, 
                         output_dir,
-                        self.naming_var.get(),
-                        self.naming_entry.get().strip(),
-                        self.format_var.get()
+                        current_settings.get('naming_rule'),
+                        current_settings.get('naming_value'),
+                        current_settings.get('format_rule')
                     )
                     
-                    # 打开图片
-                    image = Image.open(img_path)
-                    
-                    # 根据设置调整图片尺寸
-                    image = processor.resize_image(
-                        image, 
-                        self.resize_var.get(), 
-                        self.resize_entry.get()
-                    )
-                    
-                    # 处理图片以准备导出
-                    image = processor.process_image_for_export(
-                        image, 
-                        os.path.splitext(output_path)[1], 
-                        self.quality_var.get()
-                    )
-                    
-                    # Apply watermark if enabled
-                    if self.watermark_enabled_var.get():
-                        # Prepare watermark settings
-                        watermark_settings = {
-                            'text': self.watermark_text_var.get(),
-                            'transparency': self.watermark_transparency_var.get(),
-                            'position': self.watermark_position_var.get(),
-                            'font_size': 30,  # Default font size
-                            'color': (255, 255, 255)  # Default white color
-                        }
-                        
-                        # Apply watermark to the image
-                        from photowatermark.models.image_processor import ImageProcessor
-                        processor = ImageProcessor()
-                        image = processor.add_watermark_to_image(image, watermark_settings)
-                    
-                    # 保存图片
-                    _, ext = os.path.splitext(output_path)
-                    ext = ext.lower()
-                    
-                    if ext in ['.jpg', '.jpeg']:
-                        # 对于JPEG格式，使用用户设置的质量
-                        image.save(output_path, "JPEG", quality=self.quality_var.get(), exif=image.info.get('exif', b''))
-                    elif ext == '.png':
-                        # 对于PNG格式，保存时保留透明通道
-                        image.save(output_path, "PNG", exif=image.info.get('exif', b''))
-                    else:
-                        # 对于其他格式，按原样保存
-                        image.save(output_path, exif=image.info.get('exif', b''))
+                    # 使用通用的处理函数
+                    self._process_and_save_image(img_path, output_path, current_settings)
                     
                     success_count += 1
                 except Exception as e:
