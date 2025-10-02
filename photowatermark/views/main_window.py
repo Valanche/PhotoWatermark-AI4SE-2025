@@ -667,6 +667,11 @@ class MainWindow:
             'watermark_color': (255, 255, 255)  # Default white color
         }
         
+        # Add custom watermark coordinates if in custom position mode
+        if self.watermark_position_var.get() == "custom" and self.custom_watermark_x is not None and self.custom_watermark_y is not None:
+            settings['watermark_custom_x'] = self.custom_watermark_x
+            settings['watermark_custom_y'] = self.custom_watermark_y
+        
         # If controller is available, use it; otherwise use direct approach
         if self.controller:
             self.controller.set_export_callback(self._on_export_complete)
@@ -734,6 +739,13 @@ class MainWindow:
                             'font_size': settings.get('watermark_font_size', 30),
                             'color': settings.get('watermark_color', (255, 255, 255))
                         }
+                        
+                        # Add custom coordinates if in custom position mode
+                        if (settings.get('watermark_position') == "custom" and 
+                            'watermark_custom_x' in settings and 
+                            'watermark_custom_y' in settings):
+                            watermark_settings['custom_x'] = settings['watermark_custom_x']
+                            watermark_settings['custom_y'] = settings['watermark_custom_y']
                         
                         # Apply watermark to the image
                         image = processor.add_watermark_to_image(image, watermark_settings)

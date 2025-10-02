@@ -71,6 +71,13 @@ class MainController:
                             'color': settings.get('watermark_color', (255, 255, 255))
                         }
                         
+                        # Add custom coordinates if in custom position mode
+                        if (settings.get('watermark_position') == "custom" and 
+                            'watermark_custom_x' in settings and 
+                            'watermark_custom_y' in settings):
+                            watermark_settings['custom_x'] = settings['watermark_custom_x']
+                            watermark_settings['custom_y'] = settings['watermark_custom_y']
+                        
                         # Apply watermark to the image
                         image = self.image_processor.add_watermark_to_image(image, watermark_settings)
                     
