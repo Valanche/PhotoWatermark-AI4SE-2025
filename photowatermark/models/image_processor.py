@@ -166,14 +166,25 @@ class ImageProcessor:
         width, height = image.size
         margin = 10
         
-        if position == 'top-left':
+        # Check if using custom coordinates
+        if position == 'custom' and 'custom_x' in watermark_settings and 'custom_y' in watermark_settings:
+            x = watermark_settings['custom_x']
+            y = watermark_settings['custom_y']
+            # Ensure the coordinates are within image bounds
+            x = max(0, min(x, width - text_width))
+            y = max(0, min(y, height - text_height))
+        elif position == 'top-left':
             x, y = margin, margin
         elif position == 'top-center':
             x, y = (width - text_width) // 2, margin
         elif position == 'top-right':
             x, y = width - text_width - margin, margin
+        elif position == 'middle-left':
+            x, y = margin, (height - text_height) // 2
         elif position == 'center':
             x, y = (width - text_width) // 2, (height - text_height) // 2
+        elif position == 'middle-right':
+            x, y = width - text_width - margin, (height - text_height) // 2
         elif position == 'bottom-left':
             x, y = margin, height - text_height - margin
         elif position == 'bottom-center':
