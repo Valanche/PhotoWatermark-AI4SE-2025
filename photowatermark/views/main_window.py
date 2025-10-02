@@ -57,6 +57,15 @@ class MainWindow:
         self.watermark_transparency_label = None
         self.watermark_position_var = None
         
+        # Custom position variables for drag-and-drop
+        self.custom_watermark_x = None
+        self.custom_watermark_y = None
+        self.is_dragging = False
+        self.drag_start_x = 0
+        self.drag_start_y = 0
+        self.watermark_start_x = 0
+        self.watermark_start_y = 0
+        
         # Controller reference (will be set from main.py)
         self.controller = None
         
@@ -219,7 +228,8 @@ class MainWindow:
         self.watermark_position_var = tk.StringVar(value="bottom-right")
         position_options = [
             "top-left", "top-center", "top-right",
-            "center", "bottom-left", "bottom-center", "bottom-right"
+            "middle-left", "center", "middle-right",
+            "bottom-left", "bottom-center", "bottom-right"
         ]
         position_combo = ttk.Combobox(
             position_frame, 
@@ -287,6 +297,156 @@ class MainWindow:
         
         # 设置新的更新请求，延迟100毫秒执行
         self._preview_update_job = self.root.after(100, self.display_preview)
+    
+    def on_watermark_canvas_click(self, event):
+        """处理水印画布点击事件"""
+        if not self.watermark_enabled_var.get():
+            return
+        
+        # Convert the click coordinates to image coordinates 
+        canvas_width = self.preview_canvas.winfo_width()
+        canvas_height = self.preview_canvas.winfo_height()
+        
+        if canvas_width <= 1 or canvas_height <= 1:
+            canvas_width = 600
+            canvas_height = 400
+        
+        # Get the currently displayed image (could be original or with watermark)
+        image_path = self.image_paths[self.current_image_index]
+        original_image = Image.open(image_path)
+        
+        # Calculate the scale used in display_preview
+        img_width, img_height = original_image.size
+        scale = min(canvas_width / img_width, canvas_height / img_height)
+        
+        # Calculate the actual rendered image size on canvas
+        rendered_width = int(img_width * scale)
+        rendered_height = int(img_height * scale)
+        
+        # Calculate the offset due to centering the image on canvas
+        offset_x = (canvas_width - rendered_width) // 2
+        offset_y = (canvas_height - rendered_height) // 2
+        
+        # Convert canvas coordinates (relative to centered image) to image coordinates
+        img_x = int((event.x - offset_x) / scale)
+        img_y = int((event.y - offset_y) / scale)
+        
+        # Check if click is within image bounds
+        if 0 <= img_x < img_width and 0 <= img_y < img_height:
+            # Set custom position
+            self.custom_watermark_x = img_x
+            self.custom_watermark_y = img_y
+            
+            # Set the position to custom
+            self.watermark_position_var.set("custom")
+            
+            # Update preview immediately
+            self.display_preview()
+    
+    def on_watermark_drag_start(self, event):
+        """开始拖拽水印"""
+        if not self.watermark_enabled_var.get() or self.watermark_position_var.get() != "custom":
+            return
+        
+        self.is_dragging = True
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
+        
+        # Get the currently displayed image to get the scale
+        image_path = self.image_paths[self.current_image_index]
+        original_image = Image.open(image_path)
+        
+        canvas_width = self.preview_canvas.winfo_width()
+        canvas_height = self.preview_canvas.winfo_height()
+        
+        if canvas_width <= 1 or canvas_height <= 1:
+            canvas_width = 600
+            canvas_height = 400
+        
+        img_width, img_height = original_image.size
+        scale = min(canvas_width / img_width, canvas_height / img_height)
+        
+        # Calculate the actual rendered image size on canvas
+        rendered_width = int(img_width * scale)
+        rendered_height = int(img_height * scale)
+        
+        # Calculate the offset due to centering the image on canvas
+        offset_x = (canvas_width - rendered_width) // 2
+        offset_y = (canvas_height - rendered_height) // 2
+        
+        # Calculate initial watermark position in canvas coordinates (relative to image area)
+        self.watermark_start_x = self.custom_watermark_x * scale + offset_x
+        self.watermark_start_y = self.custom_watermark_y * scale + offset_y
+    
+    def on_watermark_drag(self, event):
+        """拖拽水印中"""
+        if not self.watermark_enabled_var.get() or self.watermark_position_var.get() != "custom":
+            return
+        
+        # Calculate scale and offsets
+        image_path = self.image_paths[self.current_image_index]
+        original_image = Image.open(image_path)
+        
+        canvas_width = self.preview_canvas.winfo_width()
+        canvas_height = self.preview_canvas.winfo_height()
+        
+        if canvas_width <= 1 or canvas_height <= 1:
+            canvas_width = 600
+            canvas_height = 400
+        
+        img_width, img_height = original_image.size
+        scale = min(canvas_width / img_width, canvas_height / img_height)
+        
+        # Calculate the actual rendered image size on canvas
+        rendered_width = int(img_width * scale)
+        rendered_height = int(img_height * scale)
+        
+        # Calculate the offset due to centering the image on canvas
+        offset_x = (canvas_width - rendered_width) // 2
+        offset_y = (canvas_height - rendered_height) // 2
+        
+        # If not already dragging, start dragging now
+        if not self.is_dragging:
+            self.is_dragging = True
+            self.drag_start_x = event.x
+            self.drag_start_y = event.y
+            
+            # Initialize the start position if we have custom watermark coordinates
+            if self.custom_watermark_x is not None and self.custom_watermark_y is not None:
+                # Store the current watermark position in canvas coordinates (relative to image area)
+                self.watermark_start_x = self.custom_watermark_x * scale + offset_x
+                self.watermark_start_y = self.custom_watermark_y * scale + offset_y
+            else:
+                # If no custom position yet, set it to current mouse position relative to image area
+                self.custom_watermark_x = int((event.x - offset_x) / scale)
+                self.custom_watermark_y = int((event.y - offset_y) / scale)
+                # Adjust start position to image area coordinates
+                self.watermark_start_x = event.x
+                self.watermark_start_y = event.y
+        
+        # Calculate delta from drag start
+        delta_x = event.x - self.drag_start_x
+        delta_y = event.y - self.drag_start_y
+        
+        # Calculate new image coordinates
+        new_img_x = int((self.watermark_start_x + delta_x - offset_x) / scale)
+        new_img_y = int((self.watermark_start_y + delta_y - offset_y) / scale)
+        
+        # Ensure the new coordinates stay within image bounds
+        new_img_x = max(0, min(new_img_x, img_width - 1))  # -1 to account for text width
+        new_img_y = max(0, min(new_img_y, img_height - 1))  # -1 to account for text height
+        
+        # Update custom position
+        self.custom_watermark_x = new_img_x
+        self.custom_watermark_y = new_img_y
+        
+        # Update preview immediately
+        self.display_preview()
+    
+    def on_watermark_drag_end(self, event):
+        """结束拖拽水印"""
+        self.is_dragging = False
+        # Optionally, we could trigger an update to save the position
 
     def on_resize_change(self, event=None):
         """当尺寸调整方式改变时"""
@@ -324,14 +484,29 @@ class MainWindow:
                 from photowatermark.models.image_processor import ImageProcessor
                 processor = ImageProcessor()
                 
-                # 准备水印设置
-                watermark_settings = {
-                    'text': self.watermark_text_var.get(),
-                    'transparency': self.watermark_transparency_var.get(),
-                    'position': self.watermark_position_var.get(),
-                    'font_size': 30,  # 默认字体大小
-                    'color': (255, 255, 255)  # 默认白色
-                }
+                # Check if we're using custom drag-and-drop position
+                current_position = self.watermark_position_var.get()
+                if current_position == "custom" and self.custom_watermark_x is not None and self.custom_watermark_y is not None:
+                    # For custom positioning, we'll pass the exact coordinates through a special method
+                    # Since the processor doesn't support exact coordinates yet, we'll need to enhance it
+                    watermark_settings = {
+                        'text': self.watermark_text_var.get(),
+                        'transparency': self.watermark_transparency_var.get(),
+                        'position': 'custom',  # Use custom position
+                        'custom_x': self.custom_watermark_x,
+                        'custom_y': self.custom_watermark_y,
+                        'font_size': 30,  # 默认字体大小
+                        'color': (255, 255, 255)  # 默认白色
+                    }
+                else:
+                    # Use preset position
+                    watermark_settings = {
+                        'text': self.watermark_text_var.get(),
+                        'transparency': self.watermark_transparency_var.get(),
+                        'position': current_position,
+                        'font_size': 30,  # 默认字体大小
+                        'color': (255, 255, 255)  # 默认白色
+                    }
                 
                 # 应用水印到图片（但不改变原始图片）
                 image_with_watermark = processor.add_watermark_to_image(image.copy(), watermark_settings)
@@ -376,6 +551,12 @@ class MainWindow:
             
             # 绑定窗口大小变化事件，以便动态调整预览图
             self.preview_canvas.bind("<Configure>", self.on_preview_resize)
+            
+            # 绑定鼠标事件用于水印拖拽功能
+            # Use ButtonPress-1 for click to set initial position, Button1 for drag start
+            self.preview_canvas.bind("<Button-1>", self.on_watermark_canvas_click)
+            self.preview_canvas.bind("<Button1-Motion>", self.on_watermark_drag)
+            self.preview_canvas.bind("<ButtonRelease-1>", self.on_watermark_drag_end)
             
         except Exception as e:
             error_msg = f"无法加载图片 {image_path}: {str(e)}"
