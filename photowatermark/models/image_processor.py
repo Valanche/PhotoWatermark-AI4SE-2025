@@ -8,11 +8,12 @@ except ImportError:
     ImageFont = None
 import os
 from typing import List
+from photowatermark.utils.constants import THUMBNAIL_SIZE
 
 
 class ImageProcessor:
-    def __init__(self, thumbnail_size=(80, 80)):
-        self.thumbnail_size = thumbnail_size
+    def __init__(self, thumbnail_size=None):
+        self.thumbnail_size = thumbnail_size or THUMBNAIL_SIZE
         self.thumbnail_images = []  # Store references to prevent garbage collection
 
     def create_thumbnail(self, image_path):
