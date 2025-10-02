@@ -283,6 +283,10 @@ class MainWindow:
         load_config_btn = ttk.Button(config_frame, text="加载配置", command=self.load_config)
         load_config_btn.pack(side=tk.LEFT, padx=(0, 5))
         
+        # 删除配置按钮
+        delete_config_btn = ttk.Button(config_frame, text="删除配置", command=self.delete_config)
+        delete_config_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
         # 配置名称输入
         ttk.Label(config_frame, text="配置名称:").pack(side=tk.LEFT, padx=(10, 5))
         self.config_name_var = tk.StringVar(value="默认配置")
@@ -971,6 +975,40 @@ class MainWindow:
             
         except Exception as e:
             error_msg = f"加载配置时发生错误: {str(e)}"
+            show_error_message(self.root, "错误", error_msg)
+    
+    def delete_config(self):
+        """删除水印配置"""
+        try:
+            # 确保配置目录存在
+            os.makedirs(self.configs_dir, exist_ok=True)
+            
+            # 让用户选择要删除的配置文件
+            config_file = filedialog.askopenfilename(
+                title="选择要删除的配置文件",
+                initialdir=self.configs_dir,
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            
+            if not config_file:
+                return  # 用户取消了选择
+            
+            # 获取配置文件名用于确认对话框
+            config_name = os.path.basename(config_file)
+            if config_name.endswith('.json'):
+                config_name = config_name[:-5]
+            
+            # 确认删除操作
+            result = messagebox.askyesno("确认删除", f"确定要删除配置 '{config_name}' 吗？此操作不可撤销。")
+            if not result:
+                return  # 用户取消删除
+            
+            # 删除配置文件
+            os.remove(config_file)
+            messagebox.showinfo("成功", f"配置已删除: {config_name}")
+            
+        except Exception as e:
+            error_msg = f"删除配置时发生错误: {str(e)}"
             show_error_message(self.root, "错误", error_msg)
 
     def _export_process(self, output_dir):
