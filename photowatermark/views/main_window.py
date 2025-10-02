@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 import os
+import json
 from typing import List
 
 try:
@@ -56,6 +57,8 @@ class MainWindow:
         self.watermark_transparency_var = None
         self.watermark_transparency_label = None
         self.watermark_position_var = None
+        self.watermark_font_size_var = None
+        self.watermark_color = None  # RGB tuple for color
         
         # Custom position variables for drag-and-drop
         self.custom_watermark_x = None
@@ -66,10 +69,17 @@ class MainWindow:
         self.watermark_start_x = 0
         self.watermark_start_y = 0
         
+        # Configuration management variables
+        self.config_name_var = None
+        self.configs_dir = os.path.join(os.path.expanduser("~"), ".photowatermark", "configs")
+        
         # Controller reference (will be set from main.py)
         self.controller = None
         
         self.setup_ui()
+        
+        # 确保配置目录存在
+        os.makedirs(self.configs_dir, exist_ok=True)
         
         # 设置拖拽事件（如果支持）
         if HAS_DND:
@@ -241,6 +251,43 @@ class MainWindow:
         position_combo.pack(side=tk.LEFT, padx=(5, 0))
         # 绑定位置变化事件以实时更新预览
         position_combo.bind('<<ComboboxSelected>>', self.on_watermark_position_change)
+        
+        # 水印字体大小设置
+        font_size_frame = ttk.Frame(watermark_frame)
+        font_size_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(font_size_frame, text="字体大小:").pack(side=tk.LEFT)
+        self.watermark_font_size_var = tk.IntVar(value=30)
+        font_size_scale = ttk.Scale(
+            font_size_frame,
+            from_=10,
+            to=100,
+            variable=self.watermark_font_size_var,
+            orient=tk.HORIZONTAL
+        )
+        font_size_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        self.watermark_font_size_label = ttk.Label(font_size_frame, text=f"{self.watermark_font_size_var.get()}")
+        self.watermark_font_size_var.trace_add("write", self.update_watermark_font_size_label)
+        self.watermark_font_size_label.pack(side=tk.LEFT)
+        # 绑定字体大小变化事件以实时更新预览
+        self.watermark_font_size_var.trace_add("write", self.update_preview_delayed)
+        
+        # 配置管理框架
+        config_frame = ttk.LabelFrame(watermark_frame, text="配置管理", padding=(5, 5))
+        config_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 保存和加载配置按钮
+        save_config_btn = ttk.Button(config_frame, text="保存配置", command=self.save_config)
+        save_config_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        load_config_btn = ttk.Button(config_frame, text="加载配置", command=self.load_config)
+        load_config_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 配置名称输入
+        ttk.Label(config_frame, text="配置名称:").pack(side=tk.LEFT, padx=(10, 5))
+        self.config_name_var = tk.StringVar(value="默认配置")
+        config_name_entry = ttk.Entry(config_frame, textvariable=self.config_name_var, width=15)
+        config_name_entry.pack(side=tk.LEFT)
 
     def setup_drag_drop(self):
         """设置拖拽功能"""
@@ -284,6 +331,10 @@ class MainWindow:
     def update_watermark_transparency_label(self, *args):
         """更新水印透明度标签"""
         self.watermark_transparency_label.config(text=f"{self.watermark_transparency_var.get()}")
+    
+    def update_watermark_font_size_label(self, *args):
+        """更新水印字体大小标签"""
+        self.watermark_font_size_label.config(text=f"{self.watermark_font_size_var.get()}")
     
     def on_watermark_position_change(self, event):
         """当水印位置改变时更新预览"""
@@ -495,7 +546,7 @@ class MainWindow:
                         'position': 'custom',  # Use custom position
                         'custom_x': self.custom_watermark_x,
                         'custom_y': self.custom_watermark_y,
-                        'font_size': 30,  # 默认字体大小
+                        'font_size': self.watermark_font_size_var.get(),  # 动态字体大小
                         'color': (255, 255, 255)  # 默认白色
                     }
                 else:
@@ -504,7 +555,7 @@ class MainWindow:
                         'text': self.watermark_text_var.get(),
                         'transparency': self.watermark_transparency_var.get(),
                         'position': current_position,
-                        'font_size': 30,  # 默认字体大小
+                        'font_size': self.watermark_font_size_var.get(),  # 动态字体大小
                         'color': (255, 255, 255)  # 默认白色
                     }
                 
@@ -663,7 +714,7 @@ class MainWindow:
             'watermark_text': self.watermark_text_var.get(),
             'watermark_transparency': self.watermark_transparency_var.get(),
             'watermark_position': self.watermark_position_var.get(),
-            'watermark_font_size': 30,  # Default font size
+            'watermark_font_size': self.watermark_font_size_var.get(),
             'watermark_color': (255, 255, 255)  # Default white color
         }
         
@@ -698,7 +749,7 @@ class MainWindow:
                 'watermark_text': self.watermark_text_var.get(),
                 'watermark_transparency': self.watermark_transparency_var.get(),
                 'watermark_position': self.watermark_position_var.get(),
-                'watermark_font_size': 30,  # Default font size
+                'watermark_font_size': self.watermark_font_size_var.get(),
                 'watermark_color': (255, 255, 255)  # Default white color
             }
         
@@ -822,6 +873,105 @@ class MainWindow:
                 self.add_images(file_paths)
             else:
                 messagebox.showinfo("提示", "拖拽的文件中没有找到支持的图片格式。")
+    
+    def save_config(self):
+        """保存当前水印配置"""
+        try:
+            # 确保配置目录存在
+            os.makedirs(self.configs_dir, exist_ok=True)
+            
+            # 获取当前配置名称
+            config_name = self.config_name_var.get().strip()
+            if not config_name:
+                messagebox.showwarning("警告", "请输入配置名称")
+                return
+            
+            # 获取当前水印设置
+            config_data = {
+                'watermark_enabled': self.watermark_enabled_var.get(),
+                'watermark_text': self.watermark_text_var.get(),
+                'watermark_transparency': self.watermark_transparency_var.get(),
+                'watermark_position': self.watermark_position_var.get(),
+                'watermark_font_size': self.watermark_font_size_var.get(),
+                'watermark_color': (255, 255, 255),  # 目前颜色是固定的，后续可以扩展
+                'custom_watermark_x': self.custom_watermark_x,
+                'custom_watermark_y': self.custom_watermark_y
+            }
+            
+            # 生成配置文件路径
+            config_file = os.path.join(self.configs_dir, f"{config_name}.json")
+            
+            # 保存配置到文件
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config_data, f, ensure_ascii=False, indent=2)
+            
+            messagebox.showinfo("成功", f"配置已保存为: {config_name}")
+            
+        except Exception as e:
+            error_msg = f"保存配置时发生错误: {str(e)}"
+            show_error_message(self.root, "错误", error_msg)
+    
+    def load_config(self):
+        """加载水印配置"""
+        try:
+            # 确保配置目录存在
+            os.makedirs(self.configs_dir, exist_ok=True)
+            
+            # 让用户选择配置文件
+            config_file = filedialog.askopenfilename(
+                title="选择配置文件",
+                initialdir=self.configs_dir,
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            
+            if not config_file:
+                return  # 用户取消了选择
+            
+            # 读取配置文件
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            
+            # 应用配置
+            if 'watermark_enabled' in config_data:
+                self.watermark_enabled_var.set(config_data['watermark_enabled'])
+                
+            if 'watermark_text' in config_data:
+                self.watermark_text_var.set(config_data['watermark_text'])
+                
+            if 'watermark_transparency' in config_data:
+                self.watermark_transparency_var.set(config_data['watermark_transparency'])
+                
+            if 'watermark_position' in config_data:
+                self.watermark_position_var.set(config_data['watermark_position'])
+                
+            if 'watermark_font_size' in config_data:
+                self.watermark_font_size_var.set(config_data['watermark_font_size'])
+                
+            # 应用自定义坐标
+            if 'custom_watermark_x' in config_data:
+                self.custom_watermark_x = config_data['custom_watermark_x']
+            if 'custom_watermark_y' in config_data:
+                self.custom_watermark_y = config_data['custom_watermark_y']
+            
+            # 重新启用/禁用水印控件
+            enabled = self.watermark_enabled_var.get()
+            state = 'normal' if enabled else 'disabled'
+            self.watermark_text_entry.config(state=state)
+            
+            # 更新预览
+            self.display_preview()
+            
+            # 提取并显示配置名称（去掉路径和扩展名）
+            config_name = os.path.basename(config_file)
+            if config_name.endswith('.json'):
+                config_name = config_name[:-5]
+            self.config_name_var.set(config_name)
+            
+            messagebox.showinfo("成功", f"配置已加载: {config_name}")
+            
+        except Exception as e:
+            error_msg = f"加载配置时发生错误: {str(e)}"
+            show_error_message(self.root, "错误", error_msg)
 
     def _export_process(self, output_dir):
         """在后台线程中执行导出操作"""
