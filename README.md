@@ -1,60 +1,161 @@
-# Photo Watermark CLI Tool
+# PhotoWatermark-AI4SE 迭代二
 
-This tool adds a text watermark with the capture date (extracted from EXIF data) to images. Users can customize the font size, color, and position of the watermark.
+这是一个功能强大的图片水印工具，支持文本水印、实时预览和自定义配置。该工具专为Windows平台设计，提供了直观的图形用户界面。
 
-## Features
+## 功能特性
 
-- Extracts capture date from image EXIF data
-- Adds customizable text watermark (font size, color, position)
-- Saves watermarked images to a new directory
-- Command-line interface for easy use
-- Supports processing single images or entire directories
+### 文件处理
+- ✅ 支持单张图片导入
+- ✅ 支持导入整个文件夹
+- ✅ 拖拽支持（使用鼠标将文件拖拽到程序窗口）
+- ✅ 在界面上显示已导入图片的缩略图列表
 
-## Requirements
+### 支持格式
+- **输入格式**：支持 JPEG, PNG, BMP, TIFF等主流格式
+- **输出格式**：支持原格式、JPEG、PNG
 
-- Python 3.x
-- Pillow (PIL) library
+### 导出功能
+- ✅ 用户可指定输出文件夹（完全禁止导出到原文件夹以防止覆盖）
+- ✅ 文件命名规则选项（保留原名、添加前缀、添加后缀）
+- ✅ JPEG质量调节滑块（1-100）
+- ✅ 图片尺寸调整功能（原图尺寸、按比例缩放、指定宽度、指定高度）
 
-Install the required library with:
+### 水印功能
+- ✅ 自定义文本内容
+- ✅ 字体大小调节
+- ✅ 字体颜色（默认白色，后续将支持自定义颜色）
+- ✅ 透明度控制（0-100%）
+- ✅ 九宫格预设位置（左上、中上、右上、左中、中心、右中、左下、下中、右下）
+- ✅ 自定义位置（鼠标拖拽定位）
+
+### 配置管理
+- ✅ 保存水印配置模板
+- ✅ 加载已保存的模板
+- ✅ 删除不需要的模板
+- ✅ 程序启动时自动加载上次的设置
+
+### 实时预览
+- ✅ 所有水印参数修改实时更新预览图
+- ✅ 支持在图片列表中切换预览不同图片
+- ✅ 拖拽水印位置实时显示效果
+
+## 系统要求
+
+- Windows 7/8/10/11
+- 无需安装Python（使用打包的可执行文件）
+
+## 安装和运行
+
+### 方法一：使用预编译的可执行文件（推荐）
+1. 下载发布的PhotoWatermark-AI4SE.exe文件
+2. 双击运行即可
+
+### 方法二：从源码运行
+1. 确保已安装Python 3.6+
+2. 安装依赖库：
 ```bash
-pip install Pillow
+pip install -r requirements.txt
+```
+3. 运行程序：
+```bash
+python photowatermark/main.py
 ```
 
-## Usage
+## 使用指南
 
-```bash
-python photowatermark.py <path> [options]
+### 1. 导入图片
+- **文件选择器**：点击"导入图片"按钮，选择单个或多个图片文件
+- **文件夹导入**：点击"导入文件夹"按钮，选择包含图片的文件夹
+- **拖拽导入**：直接将图片文件或文件夹拖拽到程序窗口
+
+### 2. 设置导出参数
+在右侧的"导出设置"面板中：
+- **文件命名**：选择命名规则（保留原名、添加前缀、添加后缀）
+- **输出格式**：选择输出格式（原格式、JPEG、PNG）
+- **JPEG质量**：调整JPEG输出质量（1-100）
+- **图片尺寸**：调整输出图片尺寸（原图尺寸、按比例缩放、指定宽度、指定高度）
+
+### 3. 设置水印参数
+在右侧的"水印设置"面板中：
+- **启用文本水印**：勾选复选框启用文本水印功能
+- **水印文字**：输入要显示的水印文字
+- **水印透明度**：调整水印透明度（0-100%）
+- **水印位置**：选择预设位置或手动拖拽
+- **字体大小**：调整水印字体大小
+
+### 4. 实时预览和调整
+- 在中间的预览窗口中查看水印效果
+- 点击左侧图片列表中的图片切换预览
+- 在预览图上直接拖拽水印到所需位置
+
+### 5. 导出图片
+- **导出全部**：点击"导出图片"按钮导出所有图片
+- **导出当前**：点击"导出当前图片"按钮仅导出当前预览的图片
+
+### 6. 配置管理
+在水印设置区域的"配置管理"面板中：
+- **保存配置**：保存当前的水印设置为模板
+- **加载配置**：从已保存的模板中加载设置
+- **删除配置**：删除不需要的模板文件
+
+## 开发者指南
+
+### 项目结构
+```
+photowatermark/
+├── controllers/          # 控制器模块
+├── models/              # 数据模型模块
+├── views/                # 视图模块
+│   └── widgets/         # 自定义控件
+├── utils/               # 工具模块
+├── main.py             # 程序入口点
+└── __init__.py         # 包初始化文件
 ```
 
-### Arguments
-
-- `path`: Path to the image file or directory
-
-### Options
-
-- `--font-size`: Font size for the watermark (default: 20)
-- `--color`: Watermark color as RGB values (default: 255 255 255)
-- `--position`: Position of the watermark (default: bottom-right)
-
-Position options:
-- top-left
-- top-center
-- top-right
-- center
-- bottom-left
-- bottom-center
-- bottom-right
-
-### Examples
-
-Process a single image:
+### 打包可执行文件
 ```bash
-python photowatermark.py photo.jpg --font-size 30 --color 255 0 0 --position bottom-right
+# 安装PyInstaller
+pip install pyinstaller
+
+# 生成可执行文件
+python build_exe.py
 ```
 
-Process all images in a directory:
+生成的可执行文件位于`dist/`目录中。
+
+## 技术栈
+
+- **GUI框架**：tkinter（内置，无需额外安装）
+- **图片处理**：Pillow (PIL)
+- **拖拽功能**：tkinterdnd2
+- **打包工具**：PyInstaller
+
+## 常见问题
+
+### 1. 拖拽功能不可用
+确保已安装tkinterdnd2库：
 ```bash
-python photowatermark.py /path/to/images --font-size 24 --color 0 255 0 --position top-left
+pip install tkinterdnd2
 ```
 
-This will add a red watermark with font size 30 at the bottom-right corner of the image, or process all images in a directory with a green watermark at the top-left.
+### 2. 中文字体显示异常
+程序没有使用中文字体，会在下个版本支持。
+
+### 3. 程序运行缓慢
+对于包含大量图片的文件夹，程序可能会响应较慢，这是正常的。程序会在后台处理导出操作，不影响界面交互。
+
+## 版本历史
+
+### v2.0.0 (当前版本)
+- 完全重新设计的图形用户界面
+- 支持文本水印的完整功能实现
+- 实时预览和拖拽定位
+- 配置模板管理
+- 打包为Windows可执行文件
+
+### v1.0.0
+- 命令行版本，基础水印功能
+
+## 许可证
+
+本项目采用MIT许可证，详情请参见[LICENSE](LICENSE)文件。
