@@ -132,9 +132,10 @@ class ImageProcessor:
         font = None
         if ImageFont:
             try:
-                # Try to load the specified font by name
-                from photowatermark.utils.fonts import get_font_path_by_name
-                font_path = get_font_path_by_name(font_name)
+                # Try to load the specified font by name with style support
+                from photowatermark.utils.fonts import get_stylized_font_path
+                font_path = get_stylized_font_path(font_name, bold=watermark_settings.get('bold', False), 
+                                                  italic=watermark_settings.get('italic', False))
                 if font_path and os.path.exists(font_path):
                     font = ImageFont.truetype(font_path, font_size)
                 else:

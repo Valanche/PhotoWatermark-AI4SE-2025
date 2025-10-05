@@ -52,6 +52,56 @@ def get_system_fonts():
         return ["Arial", "Times New Roman", "Courier New", "Verdana", "Helvetica"]
 
 
+def _get_font_info(font_path):
+    """
+    Get font information from font file.
+    
+    Args:
+        font_path (str): Path to the font file
+        
+    Returns:
+        dict: Font information including family, subfamily, and style flags
+    """
+    try:
+        tt = TTFont(font_path)
+        name_table = tt['name']
+        
+        # Get font information
+        font_family = None
+        font_subfamily = None
+        full_name = None
+        
+        # Prefer English (US) names
+        for record in name_table.names:
+            if record.nameID == 1 and record.platformID == 3 and record.langID == 0x0409:  # Font Family
+                font_family = record.toUnicode()
+            elif record.nameID == 2 and record.platformID == 3 and record.langID == 0x0409:  # Font Subfamily
+                font_subfamily = record.toUnicode()
+            elif record.nameID == 4 and record.platformID == 3 and record.langID == 0x0409:  # Full Font Name
+                full_name = record.toUnicode()
+                
+        # Fallback to any available names if English not found
+        if not font_family or not font_subfamily or not full_name:
+            for record in name_table.names:
+                if record.nameID == 1 and not font_family:
+                    font_family = record.toUnicode()
+                elif record.nameID == 2 and not font_subfamily:
+                    font_subfamily = record.toUnicode()
+                elif record.nameID == 4 and not full_name:
+                    full_name = record.toUnicode()
+        
+        return {
+            'family': font_family,
+            'subfamily': font_subfamily,
+            'full_name': full_name,
+            'path': font_path,
+            'is_bold': font_subfamily and ('bold' in font_subfamily.lower() or 'heavy' in font_subfamily.lower()),
+            'is_italic': font_subfamily and ('italic' in font_subfamily.lower() or 'oblique' in font_subfamily.lower())
+        }
+    except Exception:
+        return None
+
+
 def get_font_path_by_name(font_name):
     """
     Get the file path for a given font name.
@@ -103,19 +153,83 @@ def get_font_path_by_name(font_name):
         return None
 
 
-def get_safe_font_list():
+def get_stylized_font_path(base_font_name, bold=False, italic=False):
     """
-    Get a list of commonly available fonts across different systems.
+    Get the file path for a stylized version of a font (bold, italic, or both)
+    by matching font family and subfamily information.
     
+    Args:
+        base_font_name (str): The base font name
+        bold (bool): Whether to find bold version
+        italic (bool): Whether to find italic version
+        
     Returns:
-        list: List of safe font names
+        str: Path to the stylized font file, or base font if not found
     """
-    return [
-        "Arial", "Times New Roman", "Courier New", "Verdana", "Helvetica",
-        "Tahoma", "Trebuchet MS", "Georgia", "Palatino", "Garamond",
-        "Comic Sans MS", "Impact", "Lucida Console", "Lucida Sans Unicode",
-        "Microsoft Sans Serif", "Segoe UI", "Calibri", "Cambria", "Candara"
-    ]
+    try:
+        # Find all system font files
+        font_files = fm.findSystemFonts()
+        
+        # First find the base font info
+        base_info = None
+        for font_path in font_files:
+            info = _get_font_info(font_path)
+            if info and (info['full_name'] == base_font_name):
+                base_info = info
+                break
+                
+        if not base_info or not base_info['family']:
+            # If we can't find base font info, return base font path
+            return get_font_path_by_name(base_font_name)
+            
+        # Now look for a matching font with the requested styles
+        best_match = None
+        for font_path in font_files:
+            info = _get_font_info(font_path)
+            if not info or info['family'] != base_info['family']:
+                continue
+                
+            # Check if this font matches the requested styles exactly
+            matches_bold = info['is_bold'] == bold
+            matches_italic = info['is_italic'] == italic
+            
+            if matches_bold and matches_italic:
+                return font_path
+                
+            # Keep track of any match for fallback
+            if best_match is None:
+                matches_bold_loose = (not bold) or info['is_bold']
+                matches_italic_loose = (not italic) or info['is_italic']
+                if matches_bold_loose and matches_italic_loose:
+                    best_match = font_path
+                
+        # If no exact match found, return best match or base font
+        return best_match if best_match else base_info['path']
+    except Exception as e:
+        print(f"Error finding stylized font path: {e}")
+        return get_font_path_by_name(base_font_name)
+
+
+def font_supports_style(font_name, bold=False, italic=False):
+    """
+    Check if a font supports specific styles (bold, italic).
+    
+    Args:
+        font_name (str): The font name
+        bold (bool): Check for bold support
+        italic (bool): Check for italic support
+        
+    Returns:
+        bool: True if font supports the requested styles, False otherwise
+    """
+    try:
+        stylized_path = get_stylized_font_path(font_name, bold=bold, italic=italic)
+        base_path = get_font_path_by_name(font_name)
+        
+        # If we got a different path than the base font, it supports the style
+        return stylized_path and base_path and stylized_path != base_path
+    except Exception:
+        return False
 
 
 if __name__ == "__main__":
@@ -134,6 +248,38 @@ if __name__ == "__main__":
     
     # Test font path lookup
     if fonts:
-        test_font = fonts[0]
+        test_font = "Arial"
         path = get_font_path_by_name(test_font)
         print(f"Path for '{test_font}': {path}")
+        
+        # Test stylized font lookup
+        stylized_path = get_stylized_font_path(test_font, bold=True)
+        print(f"Bold version path for '{test_font}': {stylized_path}")
+        
+        stylized_path = get_stylized_font_path(test_font, italic=True)
+        print(f"Italic version path for '{test_font}': {stylized_path}")
+        
+        stylized_path = get_stylized_font_path(test_font, bold=True, italic=True)
+        print(f"Bold+Italic version path for '{test_font}': {stylized_path}")
+
+
+def font_supports_style(font_name, bold=False, italic=False):
+    """
+    Check if a font supports specific styles (bold, italic).
+    
+    Args:
+        font_name (str): The font name
+        bold (bool): Check for bold support
+        italic (bool): Check for italic support
+        
+    Returns:
+        bool: True if font supports the requested styles, False otherwise
+    """
+    try:
+        stylized_path = get_stylized_font_path(font_name, bold=bold, italic=italic)
+        base_path = get_font_path_by_name(font_name)
+        
+        # If we got a different path than the base font, it supports the style
+        return stylized_path and base_path and stylized_path != base_path
+    except Exception:
+        return False

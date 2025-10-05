@@ -60,6 +60,8 @@ class MainWindow:
         self.watermark_position_var = None
         self.watermark_font_size_var = None
         self.watermark_font_var = None  # 字体选择变量
+        self.watermark_bold_var = None  # 粗体变量
+        self.watermark_italic_var = None  # 斜体变量
         self.watermark_color = None  # RGB tuple for color
         
         # Custom position variables for drag-and-drop
@@ -318,6 +320,37 @@ class MainWindow:
         # 绑定字体变化事件以实时更新预览
         font_combo.bind('<<ComboboxSelected>>', self.on_watermark_font_change)
         
+        # 字体样式设置（粗体和斜体）
+        font_style_frame = ttk.Frame(watermark_frame)
+        font_style_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(font_style_frame, text="字体样式:").pack(side=tk.LEFT)
+        
+        # 粗体复选框
+        self.watermark_bold_var = tk.BooleanVar(value=False)
+        self.bold_check = ttk.Checkbutton(
+            font_style_frame,
+            text="粗体",
+            variable=self.watermark_bold_var
+        )
+        self.bold_check.pack(side=tk.LEFT, padx=(5, 10))
+        
+        # 斜体复选框
+        self.watermark_italic_var = tk.BooleanVar(value=False)
+        self.italic_check = ttk.Checkbutton(
+            font_style_frame,
+            text="斜体",
+            variable=self.watermark_italic_var
+        )
+        self.italic_check.pack(side=tk.LEFT)
+        
+        # 绑定样式变化事件以实时更新预览
+        self.watermark_bold_var.trace_add("write", self.on_watermark_font_style_change)
+        self.watermark_italic_var.trace_add("write", self.on_watermark_font_style_change)
+        
+        # 初始化字体样式控件状态
+        self.update_font_style_controls()
+        
         # 配置管理框架
         config_frame = ttk.LabelFrame(watermark_frame, text="配置管理", padding=(5, 5))
         config_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -392,7 +425,36 @@ class MainWindow:
     
     def on_watermark_font_change(self, event):
         """当水印字体改变时更新预览"""
+        self.update_font_style_controls()
         self.update_preview_delayed()
+    
+    def on_watermark_font_style_change(self, *args):
+        """当水印字体样式（粗体/斜体）改变时更新预览"""
+        self.update_preview_delayed()
+    
+    def update_font_style_controls(self):
+        """根据当前字体支持的样式更新控件状态"""
+        try:
+            from photowatermark.utils.fonts import font_supports_style
+            
+            current_font = self.watermark_font_var.get() if self.watermark_font_var else "Arial"
+            
+            # 检查字体是否支持粗体
+            supports_bold = font_supports_style(current_font, bold=True)
+            self.bold_check.config(state='normal' if supports_bold else 'disabled')
+            if not supports_bold:
+                self.watermark_bold_var.set(False)
+            
+            # 检查字体是否支持斜体
+            supports_italic = font_supports_style(current_font, italic=True)
+            self.italic_check.config(state='normal' if supports_italic else 'disabled')
+            if not supports_italic:
+                self.watermark_italic_var.set(False)
+                
+        except Exception as e:
+            # 如果出现错误，启用所有控件
+            self.bold_check.config(state='normal')
+            self.italic_check.config(state='normal')
     
     def update_preview_delayed(self, *args):
         """延迟更新预览以避免频繁更新"""
@@ -604,6 +666,8 @@ class MainWindow:
                         'custom_y': self.custom_watermark_y,
                         'font_size': self.watermark_font_size_var.get(),  # 动态字体大小
                         'font_name': self.watermark_font_var.get(),  # 字体名称
+                        'bold': self.watermark_bold_var.get(),  # 粗体
+                        'italic': self.watermark_italic_var.get(),  # 斜体
                         'color': (255, 255, 255)  # 默认白色
                     }
                 else:
@@ -614,6 +678,8 @@ class MainWindow:
                         'position': current_position,
                         'font_size': self.watermark_font_size_var.get(),  # 动态字体大小
                         'font_name': self.watermark_font_var.get(),  # 字体名称
+                        'bold': self.watermark_bold_var.get(),  # 粗体
+                        'italic': self.watermark_italic_var.get(),  # 斜体
                         'color': (255, 255, 255)  # 默认白色
                     }
                 
@@ -848,6 +914,8 @@ class MainWindow:
                             'position': settings.get('watermark_position', 'bottom-right'),
                             'font_size': settings.get('watermark_font_size', 30),
                             'font_name': settings.get('watermark_font_name', 'Arial'),  # 字体名称
+                            'bold': settings.get('watermark_bold', False),  # 粗体
+                            'italic': settings.get('watermark_italic', False),  # 斜体
                             'color': settings.get('watermark_color', (255, 255, 255))
                         }
                         
@@ -951,6 +1019,8 @@ class MainWindow:
                 'position': settings.get('watermark_position', DEFAULT_WATERMARK_POSITION),
                 'font_size': settings.get('watermark_font_size', DEFAULT_WATERMARK_SIZE),
                 'font_name': settings.get('watermark_font_name', 'Arial'),  # 字体名称
+                'bold': settings.get('watermark_bold', False),  # 粗体
+                'italic': settings.get('watermark_italic', False),  # 斜体
                 'color': settings.get('watermark_color', DEFAULT_WATERMARK_COLOR)
             }
             
@@ -1023,6 +1093,8 @@ class MainWindow:
                 'watermark_position': self.watermark_position_var.get(),
                 'watermark_font_size': self.watermark_font_size_var.get(),
                 'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
+                'watermark_bold': self.watermark_bold_var.get(),  # 粗体
+                'watermark_italic': self.watermark_italic_var.get(),  # 斜体
                 'watermark_color': (255, 255, 255),  # 目前颜色是固定的，后续可以扩展
                 'custom_watermark_x': self.custom_watermark_x,
                 'custom_watermark_y': self.custom_watermark_y
@@ -1079,6 +1151,12 @@ class MainWindow:
                 
             if 'watermark_font_name' in config_data:
                 self.watermark_font_var.set(config_data['watermark_font_name'])
+                
+            if 'watermark_bold' in config_data:
+                self.watermark_bold_var.set(config_data['watermark_bold'])
+                
+            if 'watermark_italic' in config_data:
+                self.watermark_italic_var.set(config_data['watermark_italic'])
                 
             # 应用自定义坐标
             if 'custom_watermark_x' in config_data:
@@ -1158,6 +1236,8 @@ class MainWindow:
                 'watermark_position': self.watermark_position_var.get() if self.watermark_position_var else 'bottom-right',
                 'watermark_font_size': self.watermark_font_size_var.get() if self.watermark_font_size_var else 30,
                 'watermark_font_name': self.watermark_font_var.get() if self.watermark_font_var else 'Arial',  # 字体名称
+                'watermark_bold': self.watermark_bold_var.get() if self.watermark_bold_var else False,  # 粗体
+                'watermark_italic': self.watermark_italic_var.get() if self.watermark_italic_var else False,  # 斜体
                 'custom_watermark_x': self.custom_watermark_x,
                 'custom_watermark_y': self.custom_watermark_y,
                 'naming_rule': self.naming_var.get() if self.naming_var else '保留原名',
@@ -1221,6 +1301,12 @@ class MainWindow:
                 
             if 'watermark_font_name' in app_state:
                 self.watermark_font_var.set(app_state['watermark_font_name'])
+                
+            if 'watermark_bold' in app_state:
+                self.watermark_bold_var.set(app_state['watermark_bold'])
+                
+            if 'watermark_italic' in app_state:
+                self.watermark_italic_var.set(app_state['watermark_italic'])
                 
             # 应用自定义坐标
             if 'custom_watermark_x' in app_state:
