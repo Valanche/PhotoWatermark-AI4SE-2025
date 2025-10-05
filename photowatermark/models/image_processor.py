@@ -208,13 +208,21 @@ class ImageProcessor:
         width, height = image.size
         margin = 10
         
-        # Check if using custom coordinates
+        # Check if using custom coordinates (relative position as percentage)
         if position == 'custom' and 'custom_x' in watermark_settings and 'custom_y' in watermark_settings:
-            x = watermark_settings['custom_x']
-            y = watermark_settings['custom_y']
-            # Ensure the coordinates are within image bounds
-            x = max(0, min(x, width - text_width))
-            y = max(0, min(y, height - text_height))
+            # Convert relative coordinates (percentage) to absolute coordinates
+            rel_x = watermark_settings['custom_x']  # This is a percentage (0-100)
+            rel_y = watermark_settings['custom_y']  # This is a percentage (0-100)
+            
+            # Convert percentage to absolute pixel coordinates
+            abs_x = int((rel_x / 100) * width)
+            abs_y = int((rel_y / 100) * height)
+            
+            # Adjust for text size to keep the text within bounds
+            abs_x = max(0, min(abs_x, width - text_width))
+            abs_y = max(0, min(abs_y, height - text_height))
+            
+            x, y = abs_x, abs_y
         elif position == 'top-left':
             x, y = margin, margin
         elif position == 'top-center':

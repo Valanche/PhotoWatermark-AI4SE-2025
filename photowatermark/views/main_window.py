@@ -510,8 +510,10 @@ class MainWindow:
         image_path = self.image_paths[self.current_image_index]
         original_image = Image.open(image_path)
         
-        # Calculate the scale used in display_preview
+        # Get image dimensions
         img_width, img_height = original_image.size
+        
+        # Calculate the scale used in display_preview
         scale = min(canvas_width / img_width, canvas_height / img_height)
         
         # Calculate the actual rendered image size on canvas
@@ -528,9 +530,9 @@ class MainWindow:
         
         # Check if click is within image bounds
         if 0 <= img_x < img_width and 0 <= img_y < img_height:
-            # Set custom position
-            self.custom_watermark_x = img_x
-            self.custom_watermark_y = img_y
+            # Set custom position using relative coordinates (percentage)
+            self.custom_watermark_x = (img_x / img_width) * 100  # Store as percentage
+            self.custom_watermark_y = (img_y / img_height) * 100  # Store as percentage
             
             # Set the position to custom
             self.watermark_position_var.set("custom")
@@ -544,8 +546,8 @@ class MainWindow:
             self.drag_start_y = event.y
             
             # Calculate initial watermark position in canvas coordinates (relative to image area)
-            self.watermark_start_x = self.custom_watermark_x * scale + offset_x
-            self.watermark_start_y = self.custom_watermark_y * scale + offset_y
+            self.watermark_start_x = img_x * scale + offset_x
+            self.watermark_start_y = img_y * scale + offset_y
     
     def on_watermark_drag_start(self, event):
         """开始拖拽水印 - This will be called when mouse button is pressed on canvas if not already dragging"""
@@ -629,9 +631,9 @@ class MainWindow:
         new_img_x = max(0, min(new_img_x, img_width - 1))  # -1 to account for text width
         new_img_y = max(0, min(new_img_y, img_height - 1))  # -1 to account for text height
         
-        # Update custom position
-        self.custom_watermark_x = new_img_x
-        self.custom_watermark_y = new_img_y
+        # Update custom position using relative coordinates (percentage)
+        self.custom_watermark_x = (new_img_x / img_width) * 100  # Store as percentage
+        self.custom_watermark_y = (new_img_y / img_height) * 100  # Store as percentage
         
         # Update preview immediately to provide visual feedback during drag
         self.display_preview()
