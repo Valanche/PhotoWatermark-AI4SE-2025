@@ -130,12 +130,23 @@ class ImageProcessor:
         
         # Handle font loading safely with font name support
         font = None
+        actual_font_info = {'bold': False, 'italic': False, 'path': None}
         if ImageFont:
             try:
                 # Try to load the specified font by name with style support
-                from photowatermark.utils.fonts import get_stylized_font_path
+                from photowatermark.utils.fonts import get_stylized_font_path, _get_font_info
                 font_path = get_stylized_font_path(font_name, bold=watermark_settings.get('bold', False), 
                                                   italic=watermark_settings.get('italic', False))
+                actual_font_info['path'] = font_path
+                
+                # Check what style the actual font has
+                if font_path:
+                    font_info = _get_font_info(font_path)
+                    if font_info:
+                        # Update the actual font info
+                        actual_font_info['bold'] = font_info.get('is_bold', False)
+                        actual_font_info['italic'] = font_info.get('is_italic', False)
+                
                 if font_path and os.path.exists(font_path):
                     font = ImageFont.truetype(font_path, font_size)
                 else:
@@ -213,4 +224,5 @@ class ImageProcessor:
         # Composite the text layer onto the original image
         watermarked = Image.alpha_composite(image, txt_layer)
         
-        return watermarked
+        # Return both the watermarked image and the actual font info
+        return watermarked, actual_font_info

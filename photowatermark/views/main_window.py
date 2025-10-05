@@ -456,6 +456,34 @@ class MainWindow:
             self.bold_check.config(state='normal')
             self.italic_check.config(state='normal')
     
+    def sync_font_style_with_actual_font(self, font_path):
+        """根据实际加载的字体同步UI中的字体样式勾选状态"""
+        try:
+            from photowatermark.utils.fonts import _get_font_info
+            
+            if not font_path or not os.path.exists(font_path):
+                return
+                
+            # 获取实际字体的信息
+            font_info = _get_font_info(font_path)
+            if not font_info:
+                return
+                
+            # 同步UI状态
+            actual_bold = font_info.get('is_bold', False)
+            actual_italic = font_info.get('is_italic', False)
+            
+            # 只在实际字体样式与UI状态不匹配时更新
+            if self.watermark_bold_var.get() != actual_bold:
+                self.watermark_bold_var.set(actual_bold)
+                
+            if self.watermark_italic_var.get() != actual_italic:
+                self.watermark_italic_var.set(actual_italic)
+                
+        except Exception as e:
+            # 静默处理错误
+            pass
+    
     def update_preview_delayed(self, *args):
         """延迟更新预览以避免频繁更新"""
         # 取消之前的更新请求（如果有的话）
@@ -684,7 +712,17 @@ class MainWindow:
                     }
                 
                 # 应用水印到图片（但不改变原始图片）
-                image_with_watermark = processor.add_watermark_to_image(image.copy(), watermark_settings)
+                result = processor.add_watermark_to_image(image.copy(), watermark_settings)
+                if isinstance(result, tuple) and len(result) == 2:
+                    image_with_watermark, actual_font_info = result
+                    # 同步UI中的字体样式勾选框
+                    self.sync_font_style_with_actual_font(actual_font_info.get('path'))
+                else:
+                    image_with_watermark = result
+                    # 为了向后兼容，如果返回的不是元组
+                    actual_font_info = {'bold': watermark_settings.get('bold', False), 
+                                      'italic': watermark_settings.get('italic', False)}
+                    self.sync_font_style_with_actual_font(None)
                 preview_image = image_with_watermark
             else:
                 preview_image = image
