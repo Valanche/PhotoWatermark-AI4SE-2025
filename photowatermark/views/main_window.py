@@ -878,6 +878,8 @@ class MainWindow:
             'watermark_position': self.watermark_position_var.get(),
             'watermark_font_size': self.watermark_font_size_var.get(),
             'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
+            'watermark_bold': self.watermark_bold_var.get(),  # 粗体
+            'watermark_italic': self.watermark_italic_var.get(),  # 斜体
             'watermark_color': (255, 255, 255)  # Default white color
         }
         
@@ -1070,7 +1072,12 @@ class MainWindow:
                 watermark_settings['custom_y'] = settings['watermark_custom_y']
             
             # 应用水印到图片
-            image = processor.add_watermark_to_image(image, watermark_settings)
+            result = processor.add_watermark_to_image(image, watermark_settings)
+            # Handle the case where add_watermark_to_image returns a tuple
+            if isinstance(result, tuple):
+                image = result[0]  # First element is the watermarked image
+            else:
+                image = result
         
         # 根据设置调整图片尺寸（在水印添加后）
         original_image = Image.open(input_path)  # Reopen to get original size
@@ -1423,6 +1430,8 @@ class MainWindow:
             'watermark_position': self.watermark_position_var.get(),
             'watermark_font_size': self.watermark_font_size_var.get(),
             'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
+            'watermark_bold': self.watermark_bold_var.get(),  # 粗体
+            'watermark_italic': self.watermark_italic_var.get(),  # 斜体
             'watermark_color': (255, 255, 255)  # Default white color
         }
         
@@ -1487,6 +1496,9 @@ class MainWindow:
                         'watermark_transparency': self.watermark_transparency_var.get(),
                         'watermark_position': self.watermark_position_var.get(),
                         'watermark_font_size': self.watermark_font_size_var.get(),
+                        'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
+                        'watermark_bold': self.watermark_bold_var.get(),  # 粗体
+                        'watermark_italic': self.watermark_italic_var.get(),  # 斜体
                         'watermark_color': DEFAULT_WATERMARK_COLOR  # Default white color
                     }
                     

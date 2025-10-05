@@ -68,6 +68,9 @@ class MainController:
                             'transparency': settings.get('watermark_transparency', 50),
                             'position': settings.get('watermark_position', 'bottom-right'),
                             'font_size': settings.get('watermark_font_size', 30),
+                            'font_name': settings.get('watermark_font_name', 'Arial'),
+                            'bold': settings.get('watermark_bold', False),
+                            'italic': settings.get('watermark_italic', False),
                             'color': settings.get('watermark_color', (255, 255, 255))
                         }
                         
@@ -79,7 +82,12 @@ class MainController:
                             watermark_settings['custom_y'] = settings['watermark_custom_y']
                         
                         # Apply watermark to the image
-                        image = self.image_processor.add_watermark_to_image(image, watermark_settings)
+                        result = self.image_processor.add_watermark_to_image(image, watermark_settings)
+                        # Handle the case where add_watermark_to_image returns a tuple
+                        if isinstance(result, tuple):
+                            image = result[0]  # First element is the watermarked image
+                        else:
+                            image = result
                     
                     # Resize image if needed first
                     # Get original dimensions from the image if not provided in settings

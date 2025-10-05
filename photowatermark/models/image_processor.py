@@ -118,6 +118,8 @@ class ImageProcessor:
         transparency = watermark_settings.get('transparency', 50)
         position = watermark_settings.get('position', 'bottom-right')
         font_name = watermark_settings.get('font_name', 'Arial')  # 默认字体
+        bold = watermark_settings.get('bold', False)
+        italic = watermark_settings.get('italic', False)
         
         # Calculate transparency value (0-255)
         alpha = int((transparency / 100) * 255)
@@ -135,8 +137,7 @@ class ImageProcessor:
             try:
                 # Try to load the specified font by name with style support
                 from photowatermark.utils.fonts import get_stylized_font_path, _get_font_info
-                font_path = get_stylized_font_path(font_name, bold=watermark_settings.get('bold', False), 
-                                                  italic=watermark_settings.get('italic', False))
+                font_path = get_stylized_font_path(font_name, bold=bold, italic=italic)
                 actual_font_info['path'] = font_path
                 
                 # Check what style the actual font has
@@ -166,6 +167,21 @@ class ImageProcessor:
         else:
             # If ImageFont is not available, use default
             font = None
+        
+        # If we want bold or italic but couldn't load a styled font, try to simulate with font properties
+        # This is a fallback approach for when we can't find a specific bold/italic font file
+        if (bold or italic) and font and hasattr(font, "font"):
+            try:
+                # For some versions of Pillow, we can modify font properties
+                if bold:
+                    # Note: This is a simplified approach. Real bold rendering requires a bold font file.
+                    pass  # We'll rely on loading the correct font file above
+                if italic:
+                    # Note: This is a simplified approach. Real italic rendering requires an italic font file.
+                    pass  # We'll rely on loading the correct font file above
+            except:
+                # If we can't modify font properties, we'll just use the font as-is
+                pass
         
         # Calculate text size
         text_width = 0
