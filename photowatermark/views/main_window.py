@@ -59,6 +59,7 @@ class MainWindow:
         self.watermark_transparency_label = None
         self.watermark_position_var = None
         self.watermark_font_size_var = None
+        self.watermark_font_var = None  # 字体选择变量
         self.watermark_color = None  # RGB tuple for color
         
         # Custom position variables for drag-and-drop
@@ -290,6 +291,33 @@ class MainWindow:
         # 绑定字体大小变化事件以实时更新预览
         self.watermark_font_size_var.trace_add("write", self.update_preview_delayed)
         
+        # 水印字体选择设置
+        font_selection_frame = ttk.Frame(watermark_frame)
+        font_selection_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(font_selection_frame, text="字体选择:").pack(side=tk.LEFT)
+        self.watermark_font_var = tk.StringVar(value="Arial")  # 默认字体
+        # 获取系统字体列表
+        try:
+            from photowatermark.utils.fonts import get_system_fonts
+            font_list = get_system_fonts()
+        except:
+            # 如果获取失败，使用安全字体列表
+            from photowatermark.utils.fonts import get_safe_font_list
+            font_list = get_safe_font_list()
+        
+        # 创建字体选择下拉框
+        font_combo = ttk.Combobox(
+            font_selection_frame,
+            textvariable=self.watermark_font_var,
+            values=font_list,
+            state="readonly",
+            width=15
+        )
+        font_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        # 绑定字体变化事件以实时更新预览
+        font_combo.bind('<<ComboboxSelected>>', self.on_watermark_font_change)
+        
         # 配置管理框架
         config_frame = ttk.LabelFrame(watermark_frame, text="配置管理", padding=(5, 5))
         config_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -360,6 +388,10 @@ class MainWindow:
     
     def on_watermark_position_change(self, event):
         """当水印位置改变时更新预览"""
+        self.update_preview_delayed()
+    
+    def on_watermark_font_change(self, event):
+        """当水印字体改变时更新预览"""
         self.update_preview_delayed()
     
     def update_preview_delayed(self, *args):
@@ -571,6 +603,7 @@ class MainWindow:
                         'custom_x': self.custom_watermark_x,
                         'custom_y': self.custom_watermark_y,
                         'font_size': self.watermark_font_size_var.get(),  # 动态字体大小
+                        'font_name': self.watermark_font_var.get(),  # 字体名称
                         'color': (255, 255, 255)  # 默认白色
                     }
                 else:
@@ -580,6 +613,7 @@ class MainWindow:
                         'transparency': self.watermark_transparency_var.get(),
                         'position': current_position,
                         'font_size': self.watermark_font_size_var.get(),  # 动态字体大小
+                        'font_name': self.watermark_font_var.get(),  # 字体名称
                         'color': (255, 255, 255)  # 默认白色
                     }
                 
@@ -739,6 +773,7 @@ class MainWindow:
             'watermark_transparency': self.watermark_transparency_var.get(),
             'watermark_position': self.watermark_position_var.get(),
             'watermark_font_size': self.watermark_font_size_var.get(),
+            'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
             'watermark_color': (255, 255, 255)  # Default white color
         }
         
@@ -812,6 +847,7 @@ class MainWindow:
                             'transparency': settings.get('watermark_transparency', 50),
                             'position': settings.get('watermark_position', 'bottom-right'),
                             'font_size': settings.get('watermark_font_size', 30),
+                            'font_name': settings.get('watermark_font_name', 'Arial'),  # 字体名称
                             'color': settings.get('watermark_color', (255, 255, 255))
                         }
                         
@@ -914,6 +950,7 @@ class MainWindow:
                 'transparency': settings.get('watermark_transparency', DEFAULT_WATERMARK_TRANSPARENCY),
                 'position': settings.get('watermark_position', DEFAULT_WATERMARK_POSITION),
                 'font_size': settings.get('watermark_font_size', DEFAULT_WATERMARK_SIZE),
+                'font_name': settings.get('watermark_font_name', 'Arial'),  # 字体名称
                 'color': settings.get('watermark_color', DEFAULT_WATERMARK_COLOR)
             }
             
@@ -985,6 +1022,7 @@ class MainWindow:
                 'watermark_transparency': self.watermark_transparency_var.get(),
                 'watermark_position': self.watermark_position_var.get(),
                 'watermark_font_size': self.watermark_font_size_var.get(),
+                'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
                 'watermark_color': (255, 255, 255),  # 目前颜色是固定的，后续可以扩展
                 'custom_watermark_x': self.custom_watermark_x,
                 'custom_watermark_y': self.custom_watermark_y
@@ -1038,6 +1076,9 @@ class MainWindow:
                 
             if 'watermark_font_size' in config_data:
                 self.watermark_font_size_var.set(config_data['watermark_font_size'])
+                
+            if 'watermark_font_name' in config_data:
+                self.watermark_font_var.set(config_data['watermark_font_name'])
                 
             # 应用自定义坐标
             if 'custom_watermark_x' in config_data:
@@ -1116,6 +1157,7 @@ class MainWindow:
                 'watermark_transparency': self.watermark_transparency_var.get() if self.watermark_transparency_var else 50,
                 'watermark_position': self.watermark_position_var.get() if self.watermark_position_var else 'bottom-right',
                 'watermark_font_size': self.watermark_font_size_var.get() if self.watermark_font_size_var else 30,
+                'watermark_font_name': self.watermark_font_var.get() if self.watermark_font_var else 'Arial',  # 字体名称
                 'custom_watermark_x': self.custom_watermark_x,
                 'custom_watermark_y': self.custom_watermark_y,
                 'naming_rule': self.naming_var.get() if self.naming_var else '保留原名',
@@ -1176,6 +1218,9 @@ class MainWindow:
                 
             if 'watermark_font_size' in app_state:
                 self.watermark_font_size_var.set(app_state['watermark_font_size'])
+                
+            if 'watermark_font_name' in app_state:
+                self.watermark_font_var.set(app_state['watermark_font_name'])
                 
             # 应用自定义坐标
             if 'custom_watermark_x' in app_state:
@@ -1253,6 +1298,7 @@ class MainWindow:
             'watermark_transparency': self.watermark_transparency_var.get(),
             'watermark_position': self.watermark_position_var.get(),
             'watermark_font_size': self.watermark_font_size_var.get(),
+            'watermark_font_name': self.watermark_font_var.get(),  # 字体名称
             'watermark_color': (255, 255, 255)  # Default white color
         }
         

@@ -117,6 +117,7 @@ class ImageProcessor:
         color = watermark_settings.get('color', (255, 255, 255))
         transparency = watermark_settings.get('transparency', 50)
         position = watermark_settings.get('position', 'bottom-right')
+        font_name = watermark_settings.get('font_name', 'Arial')  # 默认字体
         
         # Calculate transparency value (0-255)
         alpha = int((transparency / 100) * 255)
@@ -127,17 +128,29 @@ class ImageProcessor:
         # Create color with transparency
         rgba_color = (*color, alpha)
         
-        # Handle font loading safely
+        # Handle font loading safely with font name support
         font = None
         if ImageFont:
             try:
-                font = ImageFont.truetype("arial.ttf", font_size)
+                # Try to load the specified font by name
+                from photowatermark.utils.fonts import get_font_path_by_name
+                font_path = get_font_path_by_name(font_name)
+                if font_path and os.path.exists(font_path):
+                    font = ImageFont.truetype(font_path, font_size)
+                else:
+                    # Fallback to Arial if font not found
+                    font = ImageFont.truetype("arial.ttf", font_size)
             except:
                 try:
-                    font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+                    # Try Arial as fallback
+                    font = ImageFont.truetype("arial.ttf", font_size)
                 except:
-                    # Use default font if no TrueType fonts are available
-                    font = ImageFont.load_default()
+                    try:
+                        # Try DejaVuSans as another fallback
+                        font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+                    except:
+                        # Use default font if no TrueType fonts are available
+                        font = ImageFont.load_default()
         else:
             # If ImageFont is not available, use default
             font = None
